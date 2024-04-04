@@ -21,10 +21,12 @@
 
 //! Errors for the message hub.
 
+use astarte_device_sdk::introspection::AddInterfaceError;
 use std::path::PathBuf;
 
 use astarte_device_sdk::transport::grpc::convert::MessageHubProtoError;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::config::http::HttpError;
 
@@ -78,6 +80,14 @@ pub enum AstarteMessageHubError {
     /// Astarte Message Hub proto error
     #[error("Astarte Message Hub proto error, {0}")]
     Proto(#[from] MessageHubProtoError),
+
+    /// Failed to add interfaces while building an Astarte device
+    #[error("failed to add interfaces while building an Astarte device, {0}")]
+    AddInterface(#[from] AddInterfaceError),
+
+    /// Node id never attached
+    #[error("node id never attached, {0}")]
+    NonExistentNode(Uuid),
 }
 
 /// Reason why a configuration is invalid.

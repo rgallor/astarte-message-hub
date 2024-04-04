@@ -28,11 +28,11 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use std::task::{Context, Poll};
 
-use astarte_message_hub_proto::types::InterfaceJson;
+use astarte_message_hub_proto::types::InterfacesJson;
 use astarte_message_hub_proto::AstarteMessage;
 use hyper::{http, Body};
 use futures::FutureExt;
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 use once_cell::sync::Lazy;
 use tokio::sync::RwLock;
 use tokio_stream::wrappers::ReceiverStream;
@@ -54,20 +54,20 @@ pub struct AstarteMessageHub<T: Clone + AstartePublisher + AstarteSubscriber> {
 }
 
 /// A single node that can be connected to the Astarte message hub.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AstarteNode {
     /// Identifier for the node
     pub id: Uuid,
     /// A vector of interfaces for this node.
-    pub introspection: Vec<InterfaceJson>,
+    pub introspection: InterfacesJson,
 }
 
 impl AstarteNode {
     /// Instantiate a new node.
-    pub fn new(uuid: Uuid, introspection: Vec<Vec<u8>>) -> Self {
+    pub fn new(uuid: Uuid, introspection: InterfacesJson) -> Self {
         AstarteNode {
             id: uuid,
-            introspection: introspection.into_iter().map(InterfaceJson).collect(),
+            introspection,
         }
     }
 }
@@ -276,17 +276,20 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
     /// ```no_run
     /// use astarte_message_hub_proto::message_hub_client::MessageHubClient;
     /// use astarte_message_hub_proto::Node;
+    /// use astarte_message_hub_proto::types::InterfaceJson;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), tonic::Status> {
-    ///     let mut message_hub_client = MessageHubClient::connect("http://[::1]:10000").await.unwrap();
+    /// let mut message_hub_client = MessageHubClient::connect("http://[::1]:10000").await.unwrap();
     ///
-    ///     let interface_json = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
-    ///         .unwrap();
+    ///     let interface_json: InterfaceJson = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
+    ///         .unwrap()
+    ///         .as_slice()
+    ///         .into();
     ///
     ///     let node = Node {
     ///             uuid: "a2d4769f-0338-4f7f-b71d-9f81b41ae13f".to_string(),
-    ///             interface_jsons: vec![interface_json],
+    ///             interface_jsons: Some(interface_json.into()),
     ///     };
     ///
     ///     let mut stream = message_hub_client
@@ -315,7 +318,10 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
             ))
         })?;
 
-        let astarte_node = AstarteNode::new(id, node.interface_jsons);
+        // if `interfaces_json` is None it means the list of interfaces is empty
+        let interfaces_json = node.interface_jsons.unwrap_or_default();
+
+        let astarte_node = AstarteNode::new(id, interfaces_json.into());
 
         let rx = match self.astarte_handler.subscribe(&astarte_node).await {
             Ok(rx) => rx,
@@ -341,16 +347,18 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
     /// #[tokio::main]
     /// async fn main() -> Result<(), tonic::Status> {
     /// use astarte_message_hub_proto::astarte_message::Payload;
-    /// use astarte_message_hub_proto::AstarteMessage;
+    /// use astarte_message_hub_proto::{AstarteMessage, InterfaceJson};
     ///
     ///     let mut message_hub_client = MessageHubClient::connect("http://[::1]:10000").await.unwrap();
     ///
-    ///     let interface_json = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
-    ///         .unwrap();
+    ///     let interface_json: InterfaceJson = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
+    ///         .unwrap()
+    ///         .as_slice()
+    ///         .into();
     ///
     ///     let node = Node {
     ///             uuid: "a2d4769f-0338-4f7f-b71d-9f81b41ae13f".to_string(),
-    ///             interface_jsons: vec![interface_json],
+    ///             interface_jsons: Some(interface_json.into()),
     ///     };
     ///
     ///     let stream = message_hub_client
@@ -404,6 +412,8 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
         let mut nodes = self.nodes.write().await;
 
         if let Some(astarte_node) = nodes.remove(&id) {
+            info!("\n\n{astarte_node:?}\n\n");
+
             if let Err(err) = self.astarte_handler.unsubscribe(&astarte_node).await {
                 let err_msg = format!("Unable to unsubscribe, err: {err:?}");
                 Err(Status::internal(err_msg))
@@ -412,6 +422,58 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
             }
         } else {
             Err(Status::internal("Unable to find AstarteNode"))
+        }
+    }
+
+    async fn add_interfaces(
+        &self,
+        request: Request<astarte_message_hub_proto::InterfacesJson>,
+    ) -> Result<Response<pbjson_types::Empty>, Status> {
+        // retrieve the node id
+        let Some(node_id) = request.extensions().get::<NodeId>() else {
+            debug!("Node not found while adding interfaces");
+            return Err(Status::not_found("node id"));
+        };
+
+        info!("Node {node_id} Add Interfaces Request");
+        let interfaces = request.get_ref();
+
+        if let Err(err) = self
+            .astarte_handler
+            .extend_interfaces(node_id, interfaces)
+            .await
+        {
+            let err_msg = format!("Unable to add interfaces, err: {err:?}");
+            error!("{err_msg}");
+            Err(Status::internal(err_msg))
+        } else {
+            Ok(Response::new(pbjson_types::Empty {}))
+        }
+    }
+
+    async fn remove_interfaces(
+        &self,
+        request: Request<astarte_message_hub_proto::InterfacesName>,
+    ) -> Result<Response<pbjson_types::Empty>, Status> {
+        // retrieve the node id
+        let Some(node_id) = request.extensions().get::<NodeId>() else {
+            debug!("Node not found while adding interfaces");
+            return Err(Status::not_found("node id"));
+        };
+
+        info!("Node {node_id} Remove Interfaces Request");
+        let interfaces = request.get_ref();
+
+        if let Err(err) = self
+            .astarte_handler
+            .remove_interfaces(node_id, interfaces)
+            .await
+        {
+            let err_msg = format!("Unable to add interfaces, err: {err:?}");
+            error!("{err_msg}");
+            Err(Status::internal(err_msg))
+        } else {
+            Ok(Response::new(pbjson_types::Empty {}))
         }
     }
 }
@@ -426,8 +488,8 @@ mod test {
 
     use astarte_message_hub_proto::astarte_message::Payload;
     use astarte_message_hub_proto::message_hub_server::MessageHub;
-    use astarte_message_hub_proto::AstarteMessage;
-    use astarte_message_hub_proto::Node;
+    use astarte_message_hub_proto::{AstarteMessage, InterfacesJson};
+    use astarte_message_hub_proto::{InterfacesName, Node};
     use async_trait::async_trait;
     use hyper::{Body, Response, StatusCode};
     use mockall::mock;
@@ -441,7 +503,10 @@ mod test {
 
     use crate::astarte::{AstartePublisher, AstarteSubscriber};
     use crate::error::AstarteMessageHubError;
-    use crate::server::{AstarteNode, NodeId, node_id_from_bin, node_id_from_ascii, InterceptorError, NodeIdInterceptorLayer};
+    use crate::server::{
+        node_id_from_ascii, node_id_from_bin, AstarteNode, InterceptorError, NodeId,
+        NodeIdInterceptorLayer,
+    };
 
     use super::AstarteMessageHub;
 
@@ -470,6 +535,10 @@ mod test {
             ) -> Result<Receiver<Result<AstarteMessage, Status>>, AstarteMessageHubError>;
 
             async fn unsubscribe(&self, astarte_node: &AstarteNode) -> Result<(), AstarteMessageHubError>;
+
+            async fn extend_interfaces(&self, node_id: &Uuid, interfaces: &InterfacesJson) -> Result<(), AstarteMessageHubError>;
+
+            async fn remove_interfaces(&self, node_id: &Uuid, interfaces: &InterfacesName) -> Result<(), AstarteMessageHubError>;
         }
     }
 
@@ -532,14 +601,13 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![
-            SERV_PROPS_IFACE.to_string().into_bytes(),
-            SERV_OBJ_IFACE.to_string().into_bytes(),
-        ];
+        let interfaces = vec![SERV_PROPS_IFACE.as_bytes(), SERV_OBJ_IFACE.as_bytes()]
+            .as_slice()
+            .into();
 
         let node_introspection = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
-            interface_jsons: interfaces,
+            interface_jsons: Some(interfaces),
         };
 
         let req_node = Request::new(node_introspection);
@@ -560,7 +628,7 @@ mod test {
 
         let node_introspection = Node {
             uuid: "a1".to_owned(),
-            interface_jsons: vec![],
+            interface_jsons: Some(InterfacesJson::default()),
         };
 
         let req_node = Request::new(node_introspection);
@@ -586,11 +654,11 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
 
         let node_introspection = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
-            interface_jsons: interfaces,
+            interface_jsons: Some(interfaces),
         };
 
         let req_node = Request::new(node_introspection);
@@ -680,11 +748,11 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
 
         let node = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
-            interface_jsons: interfaces,
+            interface_jsons: Some(interfaces),
         };
 
         let req_node_attach = Request::new(node.clone());
@@ -707,7 +775,7 @@ mod test {
 
         let node_introspection = Node {
             uuid: "a1".to_owned(),
-            interface_jsons: vec![],
+            interface_jsons: Some(InterfacesJson::default()),
         };
 
         let req_node = Request::new(node_introspection);
@@ -736,11 +804,11 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
 
         let node = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
-            interface_jsons: interfaces,
+            interface_jsons: Some(interfaces),
         };
 
         let req_node = Request::new(node);
@@ -771,11 +839,11 @@ mod test {
 
         let astarte_message = AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
 
         let node = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
-            interface_jsons: interfaces,
+            interface_jsons: Some(interfaces),
         };
 
         let req_node_attach = Request::new(node.clone());
@@ -870,7 +938,7 @@ mod test {
 
     fn create_node_interceptor_service(
         hm: HashMap<Uuid, AstarteNode>,
-    ) -> impl Service<hyper::Request<Body>, Error=InterceptorError> {
+    ) -> impl Service<hyper::Request<Body>, Error = InterceptorError> {
         let msg_hub_nodes = Arc::new(RwLock::new(hm));
 
         ServiceBuilder::new()
@@ -916,7 +984,13 @@ mod test {
         // CASE: node-id-bin present but not inserted in the Message Hub Node lists
         let req = create_http_req_with_metadata_node_id("http://localhost:50051/");
 
-        let msg_hub_nodes = HashMap::from([(TEST_UUID, AstarteNode::new(TEST_UUID, vec![]))]);
+        let msg_hub_nodes = HashMap::from([(
+            TEST_UUID,
+            AstarteNode::new(
+                TEST_UUID,
+                astarte_message_hub_proto::types::InterfacesJson::default(),
+            ),
+        )]);
 
         let mut service = create_node_interceptor_service(msg_hub_nodes);
 

@@ -21,10 +21,12 @@
 //!
 //! This module contains all the required traits for such an handler.
 
-use astarte_message_hub_proto::AstarteMessage;
+use astarte_message_hub_proto::InterfacesJson;
+use astarte_message_hub_proto::{AstarteMessage, InterfacesName};
 use async_trait::async_trait;
 use tokio::sync::mpsc::Receiver;
 use tonic::Status;
+use uuid::Uuid;
 
 use crate::error::AstarteMessageHubError;
 use crate::server::AstarteNode;
@@ -55,4 +57,18 @@ pub trait AstarteSubscriber {
 
     /// Unsubscribe a previously subscribed node to Astarte.
     async fn unsubscribe(&self, astarte_node: &AstarteNode) -> Result<(), AstarteMessageHubError>;
+
+    /// Extend the device interfaces
+    async fn extend_interfaces(
+        &self,
+        node_id: &Uuid,
+        interfaces: &InterfacesJson,
+    ) -> Result<(), AstarteMessageHubError>;
+
+    /// Remove the device interfaces
+    async fn remove_interfaces(
+        &self,
+        node_id: &Uuid,
+        interfaces: &InterfacesName,
+    ) -> Result<(), AstarteMessageHubError>;
 }

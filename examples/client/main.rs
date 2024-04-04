@@ -21,11 +21,12 @@
 //! Astarte Message Hub client example, will send the uptime every 3 seconds to Astarte.
 
 use astarte_device_sdk::builder::DeviceBuilder;
+use astarte_device_sdk::prelude::*;
 use astarte_device_sdk::store::memory::MemoryStore;
 use astarte_device_sdk::transport::grpc::GrpcConfig;
-use astarte_device_sdk::EventLoop;
-use astarte_device_sdk::prelude::*;
+use astarte_device_sdk::{EventLoop, Interface};
 
+use std::str::FromStr;
 use std::time;
 
 use clap::Parser;
@@ -105,14 +106,73 @@ async fn main() -> Result<(), DynError> {
 
             let elapsed_str = format!("Uptime for node {}: {}", args.uuid, elapsed);
 
-            client
-                .send(
-                    "org.astarte-platform.rust.examples.datastream.DeviceDatastream",
-                    "/uptime",
-                    elapsed_str,
-                )
-                .await
-                .expect("failed to send Astarte message");
+            match count {
+                0 => {
+                    client
+                        .send(
+                            "org.astarte-platform.rust.examples.datastream.DeviceDatastream",
+                            "/uptime",
+                            elapsed_str.clone(),
+                        )
+                        .await
+                        .expect("failed to send Astarte message");
+                }
+                1 => {
+                    // Add the remaining interfaces
+                    let additional_interfaces = read_additional_interfaces();
+                    info!("adding {} interfaces", additional_interfaces.len());
+                    client
+                        .extend_interfaces(additional_interfaces)
+                        .await
+                        .expect("failed to extend interfaces");
+
+                    info!("sending additional data");
+                    client
+                        .send(
+                            "org.astarte-platform.rust.examples.datastream.AdditionalDeviceDatastream",
+                            "/additional_uptime",
+                            elapsed_str,
+                        )
+                        .await
+                        .expect("failed to send Astarte message");
+                    info!("sent additional data");
+                }
+                2 => {
+                    info!("sending additional data");
+                    client
+                        .send(
+                            "org.astarte-platform.rust.examples.datastream.AdditionalDeviceDatastream",
+                            "/additional_uptime",
+                            elapsed_str,
+                        )
+                        .await
+                        .expect("failed to send Astarte message");
+                    info!("sent additional data");
+                }
+                3 => {
+                    // remove the added interfaces
+                    let to_remove = [
+                        "org.astarte-platform.rust.examples.datastream.AdditionalDeviceDatastream",
+                    ]
+                    .map(|i| i.to_string());
+                    info!("removing {} interfaces", to_remove.len());
+                    client
+                        .remove_interfaces(to_remove)
+                        .await
+                        .expect("failed to extend interfaces");
+
+                    info!("sending data to a removed interface");
+                    let err = client
+                        .send(
+                            "org.astarte-platform.rust.examples.datastream.AdditionalDeviceDatastream",
+                            "/additional_uptime",
+                            elapsed_str,
+                        )
+                        .await.unwrap_err();
+                    warn!("failed to send Astarte message: {err}");
+                }
+                _ => break,
+            }
 
             count += 1;
         }
@@ -147,4 +207,15 @@ async fn handle_task(h: JoinHandle<()>) {
         Err(err) if err.is_cancelled() => {}
         Err(err) => error!("join error: {err:?}"),
     };
+}
+
+fn read_additional_interfaces() -> Vec<Interface> {
+    let iface_str = include_str!(
+        "interfaces/additional/org.astarte-platform.rust.examples.datastream.AdditionalDeviceDatastream.json"
+    );
+
+    [iface_str]
+        .into_iter()
+        .map(|i| Interface::from_str(i).expect("failed to convert str to Interface"))
+        .collect()
 }

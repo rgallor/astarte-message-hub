@@ -85,6 +85,7 @@ pub async fn init_message_hub(
             .layer(layer)
             .trace_fn(|_| tracing::debug_span!("message_hub"))
             .timeout(Duration::from_secs(10))
+            .layer(message_hub.make_interceptor_layer())
             .add_service(MessageHubServer::new(message_hub))
             .serve((Ipv6Addr::LOCALHOST, GRPC_PORT).into())
             .await

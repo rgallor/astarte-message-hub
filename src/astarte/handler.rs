@@ -20,29 +20,35 @@
 
 //! Contains an implementation of an Astarte handler.
 
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use astarte_device_sdk::{
+    error::Error as AstarteError,
     store::SqliteStore,
     transport::grpc::convert::{map_values_to_astarte_type, MessageHubProtoError},
     types::AstarteType,
-    DeviceEvent, Error as AstarteError,
+    DeviceEvent, Interface,
 };
 use astarte_message_hub_proto::{
     astarte_data_type::Data, astarte_message::Payload, AstarteDataTypeIndividual, AstarteMessage,
+    InterfacesJson, InterfacesName,
 };
+
 use async_trait::async_trait;
-use log::error;
+use itertools::Itertools;
+use log::{debug, error, info};
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::ops::Not;
+use std::sync::Arc;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::RwLock;
 use tonic::Status;
 use uuid::Uuid;
 
-use super::sdk::{Client, DeviceClient, DynamicIntrospection};
-use super::{AstartePublisher, AstarteSubscriber};
 use crate::error::AstarteMessageHubError;
 use crate::server::AstarteNode;
+
+use super::sdk::*;
+use super::{AstartePublisher, AstarteSubscriber};
 
 type SubscribersMap = Arc<RwLock<HashMap<Uuid, Subscriber>>>;
 
@@ -137,6 +143,12 @@ pub struct Subscriber {
     sender: Sender<Result<AstarteMessage, Status>>,
 }
 
+impl Debug for Subscriber {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.introspection)
+    }
+}
+
 /// An Astarte Device SDK based implementation of an Astarte handler.
 ///
 /// Uses the [`DeviceClient`] to provide subscribe and publish functionality.
@@ -213,23 +225,20 @@ impl AstarteSubscriber for DevicePublisher {
         &self,
         astarte_node: &AstarteNode,
     ) -> Result<Receiver<Result<AstarteMessage, Status>>, AstarteMessageHubError> {
-        use astarte_device_sdk::Interface;
-
         let (tx, rx) = channel(32);
 
-        let mut astarte_interfaces: Vec<Interface> = vec![];
+        let introspection: Vec<Interface> = astarte_node
+            .introspection
+            .iter()
+            .map(|i| Interface::try_from(i.clone()))
+            .try_collect()?;
 
-        for interface in astarte_node.introspection.iter() {
-            let astarte_interface: Interface = interface.clone().try_into()?;
-            self.client.add_interface(astarte_interface.clone()).await?;
-
-            astarte_interfaces.push(astarte_interface);
-        }
+        self.client.extend_interfaces(introspection.clone()).await?;
 
         self.subscribers.write().await.insert(
             astarte_node.id,
             Subscriber {
-                introspection: astarte_interfaces,
+                introspection,
                 sender: tx,
             },
         );
@@ -278,6 +287,100 @@ impl AstarteSubscriber for DevicePublisher {
                 "Unable to find AstarteNode".to_string(),
             ))
         }
+    }
+
+    async fn extend_interfaces(
+        &self,
+        node_id: &Uuid,
+        interfaces: &InterfacesJson,
+    ) -> Result<(), AstarteMessageHubError> {
+        let mut rw_subscribers = self.subscribers.write().await;
+
+        let Some(subscribers) = rw_subscribers.get_mut(node_id) else {
+            error!("invalid node id {node_id}");
+            return Err(AstarteMessageHubError::NonExistentNode(*node_id));
+        };
+
+        let interfaces = astarte_message_hub_proto::types::InterfacesJson::from(interfaces);
+
+        let interfaces: Vec<Interface> = interfaces
+            .iter()
+            .map(|i| Interface::try_from(i.clone()))
+            .try_collect()?;
+
+        info!("extending interfaces with {interfaces:?}");
+        self.client.extend_interfaces(interfaces.clone()).await?;
+        info!("sdk interfaces extended");
+
+        // add the non-duplicated interfaces to the introspection
+        let to_add = interfaces
+            .into_iter()
+            .filter(|astarte_interface| !subscribers.introspection.contains(astarte_interface))
+            .collect_vec();
+        info!("Non duplicated interfaces: {to_add:?}");
+        subscribers.introspection.extend(to_add);
+        info!(
+            "subscriber introspection updated with the added interfaces: {:?}",
+            subscribers.introspection
+        );
+
+        Ok(())
+    }
+
+    async fn remove_interfaces(
+        &self,
+        node_id: &Uuid,
+        interfaces: &InterfacesName,
+    ) -> Result<(), AstarteMessageHubError> {
+        let mut rw_subscribers = self.subscribers.write().await;
+
+        if !rw_subscribers.contains_key(node_id) {
+            error!("invalid node id {node_id}");
+            return Err(AstarteMessageHubError::NonExistentNode(*node_id));
+        };
+
+        // check that each of the interfaces to remove is not present in other nodes:
+        // - if at least another node uses that interface, the interface should not be removed from the introspection but only from that node (in the subscriber map)
+        // - if none of the other nodes use that interface, it can also be removed from the introspection
+        let to_remove_from_intr = interfaces
+            .iter_inner()
+            .filter_map(|iface| {
+                rw_subscribers
+                    .iter()
+                    // don't consider the current node
+                    .filter_map(|(k, v)| (k != node_id).then_some(v))
+                    // for each node, check if its introspection contains the interfaces to remove
+                    // TODO: simplify when the introspection will be changed in an HashSet 
+                    .map(|sub| {
+                        sub.introspection
+                            .iter()
+                            .map(|i| i.interface_name())
+                            .collect_vec()
+                            .contains(&iface)
+                    })
+                    // atr least another node contains that interface in its introspection
+                    .any(|contained| contained)
+                    // avoid inserting it in the list of interfaces to be removed from the introspection
+                    .not()
+                    .then_some(iface.to_string())
+            })
+            .collect_vec();
+
+        debug!("removing the following interfaces from the introspection: {to_remove_from_intr:?}");
+        self.client.remove_interfaces(to_remove_from_intr).await?;
+        info!("interfaces removed");
+
+        let sub = rw_subscribers
+            .get_mut(node_id)
+            .ok_or(AstarteMessageHubError::NonExistentNode(*node_id))?;
+
+        // remove the specified interfaces from the current node
+        for to_remove in interfaces.iter_inner() {
+            sub.introspection
+                .retain(|iface| iface.interface_name() != to_remove);
+        }
+
+        Ok(())
     }
 }
 
@@ -409,11 +512,14 @@ mod test {
         let mut device_sdk = DeviceClient::<SqliteStore>::default();
 
         device_sdk
-            .expect_add_interface()
-            .withf(|i| i.interface_name() == "org.astarte-platform.test.test")
+            .expect_extend_interfaces()
+            .withf(|i: &Vec<Interface>| {
+                i.iter()
+                    .all(|iface| iface.interface_name() == "org.astarte-platform.test.test")
+            })
             .returning(|_| Ok(()));
 
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = [SERV_PROPS_IFACE].as_slice().into();
 
         let astarte_node = AstarteNode::new(
             "550e8400-e29b-41d4-a716-446655440000".parse().unwrap(),
@@ -433,7 +539,7 @@ mod test {
     #[tokio::test]
     async fn subscribe_failed_invalid_interface() {
         let device_sdk = DeviceClient::<SqliteStore>::default();
-        let interfaces = vec!["INVALID".to_string().into_bytes()];
+        let interfaces = ["INVALID"].as_slice().into();
 
         let astarte_node = AstarteNode::new(
             "550e8400-e29b-41d4-a716-446655440000".parse().unwrap(),
@@ -462,7 +568,7 @@ mod test {
         let mut client = DeviceClient::<SqliteStore>::default();
         let mut connection = DeviceConnection::<SqliteStore, Grpc>::default();
 
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = [SERV_PROPS_IFACE].as_slice().into();
 
         let astarte_node = AstarteNode::new(
             "550e8400-e29b-41d4-a716-446655440000".parse().unwrap(),
@@ -473,6 +579,7 @@ mod test {
 
         let mut seq = mockall::Sequence::new();
 
+        // TODO: check if expect_clone could be used
         client
             .expect_clone()
             .once()
@@ -481,10 +588,13 @@ mod test {
                 let mut client = DeviceClient::<SqliteStore>::default();
 
                 client
-                    .expect_add_interface()
+                    .expect_extend_interfaces()
                     .once()
                     .in_sequence(&mut seq)
-                    .withf(|i| i.interface_name() == "org.astarte-platform.test.test")
+                    .withf(|i: &Vec<Interface>| {
+                        i.iter()
+                            .all(|iface| iface.interface_name() == "org.astarte-platform.test.test")
+                    })
                     .returning(|_| Ok(()));
 
                 client
@@ -1145,13 +1255,9 @@ mod test {
 
     #[tokio::test]
     async fn detach_node_success() {
-        let interfaces = vec![
-            SERV_PROPS_IFACE.to_string().into_bytes(),
-            SERV_OBJ_IFACE.to_string().into_bytes(),
-        ];
+        let interfaces = [SERV_PROPS_IFACE, SERV_OBJ_IFACE].as_slice().into();
 
         let mut client = DeviceClient::<SqliteStore>::default();
-
         let mut seq = mockall::Sequence::new();
 
         client
@@ -1162,12 +1268,13 @@ mod test {
                 let mut client = DeviceClient::<SqliteStore>::default();
 
                 client
-                    .expect_add_interface()
-                    .times(2)
+                    .expect_extend_interfaces()
+                    .once()
                     .in_sequence(&mut seq)
-                    .returning(|_| Ok(()));
+                    .returning(|_: Vec<Interface>| Ok(()));
                 client
                     .expect_remove_interface()
+                    // TODO: check if it should be called twice or once
                     .times(2)
                     .in_sequence(&mut seq)
                     .returning(|_| Ok(()));
@@ -1191,7 +1298,7 @@ mod test {
 
     #[tokio::test]
     async fn detach_node_unsubscribe_failed() {
-        let interfaces = vec![SERV_PROPS_IFACE.to_string().into_bytes()];
+        let interfaces = [SERV_PROPS_IFACE].as_slice().into();
 
         let mut client = DeviceClient::<SqliteStore>::new();
 
@@ -1203,6 +1310,9 @@ mod test {
             .in_sequence(&mut seq)
             .returning(move || {
                 let mut client = DeviceClient::<SqliteStore>::new();
+
+                // TODO: check if add_interfaces expectation is missing
+                // client.expect_add_interface().once().in_sequence(&mut seq).returning(|_| Ok(()));
 
                 client
                     .expect_remove_interface()
