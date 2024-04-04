@@ -49,7 +49,7 @@ use log::{debug, info};
 #[clap(author, version, about, long_about = None)]
 struct Cli {
     /// Path to a valid .toml file containing the message hub configuration.
-    #[clap(short, long, conflicts_with = "store-directory")]
+    #[clap(short, long, conflicts_with = "store_directory")]
     toml: Option<String>,
     /// Directory used by Astarte-Message-Hub to retain configuration and other persistent data.
     #[clap(short, long, conflicts_with = "toml")]
