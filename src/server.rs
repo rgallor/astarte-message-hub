@@ -20,12 +20,12 @@
 //! Contains the implementation for the Astarte message hub.
 
 use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::collections::HashMap;
 use std::task::{Context, Poll};
 
 use astarte_message_hub_proto::types::InterfacesJson;

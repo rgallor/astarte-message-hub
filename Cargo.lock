@@ -122,7 +122,7 @@ checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
 [[package]]
 name = "astarte-device-sdk"
 version = "0.7.3"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#e9837e9c758b18ae7b80124c702024ff97f48c1c"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#1bd32a13b6bcb97ac392de13b1df7139e390fa5e"
 dependencies = [
  "ahash",
  "astarte-device-sdk-derive",
@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-derive"
 version = "0.7.3"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#e9837e9c758b18ae7b80124c702024ff97f48c1c"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#1bd32a13b6bcb97ac392de13b1df7139e390fa5e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -171,7 +171,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-mock"
 version = "0.7.3"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#e9837e9c758b18ae7b80124c702024ff97f48c1c"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#1bd32a13b6bcb97ac392de13b1df7139e390fa5e"
 dependencies = [
  "astarte-device-sdk",
  "async-trait",
@@ -221,7 +221,7 @@ dependencies = [
 [[package]]
 name = "astarte-message-hub-proto"
 version = "0.6.1"
-source = "git+https://github.com/rgallor/astarte-message-hub-proto?branch=dynamic-introspection-tmp#cba2293b96f96a07d370b8107cfc6afd9c4cd631"
+source = "git+https://github.com/rgallor/astarte-message-hub-proto?branch=dynamic-introspection#ee2b8f398cd9950858a110203b360f0320f5e7b0"
 dependencies = [
  "chrono",
  "pbjson-types",

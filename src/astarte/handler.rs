@@ -265,7 +265,7 @@ impl AstarteSubscriber for DevicePublisher {
                         })
                         .is_none()
                 })
-                .collect::<Vec<astarte_device_sdk::Interface>>()
+                .collect::<Vec<Interface>>()
         };
 
         for interface in interfaces_to_remove.iter() {
@@ -350,7 +350,7 @@ impl AstarteSubscriber for DevicePublisher {
                     // don't consider the current node
                     .filter_map(|(k, v)| (k != node_id).then_some(v))
                     // for each node, check if its introspection contains the interfaces to remove
-                    // TODO: simplify when the introspection will be changed in an HashSet 
+                    // TODO: simplify when the introspection will be changed in an HashSet
                     .map(|sub| {
                         sub.introspection
                             .iter()
@@ -517,7 +517,7 @@ mod test {
                 i.iter()
                     .all(|iface| iface.interface_name() == "org.astarte-platform.test.test")
             })
-            .returning(|_| Ok(()));
+            .returning(|_| Ok(vec!["org.astarte-platform.test.test".to_string()]));
 
         let interfaces = [SERV_PROPS_IFACE].as_slice().into();
 
@@ -559,7 +559,7 @@ mod test {
 
     #[tokio::test]
     async fn poll_success() {
-        let prop_interface = astarte_device_sdk::Interface::from_str(SERV_PROPS_IFACE).unwrap();
+        let prop_interface = Interface::from_str(SERV_PROPS_IFACE).unwrap();
         let expected_interface_name = prop_interface.interface_name();
         let interface_string = expected_interface_name.to_string();
         let path = "test";
@@ -579,7 +579,6 @@ mod test {
 
         let mut seq = mockall::Sequence::new();
 
-        // TODO: check if expect_clone could be used
         client
             .expect_clone()
             .once()
@@ -595,7 +594,7 @@ mod test {
                         i.iter()
                             .all(|iface| iface.interface_name() == "org.astarte-platform.test.test")
                     })
-                    .returning(|_| Ok(()));
+                    .returning(|_| Ok(vec!["org.astarte-platform.test.test".to_string()]));
 
                 client
             });
@@ -1271,13 +1270,13 @@ mod test {
                     .expect_extend_interfaces()
                     .once()
                     .in_sequence(&mut seq)
-                    .returning(|_: Vec<Interface>| Ok(()));
+                    .returning(|i: Vec<Interface>| Ok(i.iter().map(|i| i.interface_name().to_string()).collect_vec()));
+
                 client
                     .expect_remove_interface()
-                    // TODO: check if it should be called twice or once
                     .times(2)
                     .in_sequence(&mut seq)
-                    .returning(|_| Ok(()));
+                    .returning(|_| Ok(true));
 
                 client
             });
@@ -1311,14 +1310,11 @@ mod test {
             .returning(move || {
                 let mut client = DeviceClient::<SqliteStore>::new();
 
-                // TODO: check if add_interfaces expectation is missing
-                // client.expect_add_interface().once().in_sequence(&mut seq).returning(|_| Ok(()));
-
                 client
                     .expect_remove_interface()
                     .once()
                     .in_sequence(&mut seq)
-                    .returning(|_| Ok(()));
+                    .returning(|_| Ok(true));
 
                 client
             });

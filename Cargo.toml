@@ -69,8 +69,7 @@ tempfile = { workspace = true }
 [workspace.dependencies]
 astarte-device-sdk = { git = "https://github.com/rgallor/astarte-device-sdk-rust", branch = "dynamic-introspection" }
 astarte-device-sdk-mock = { git = "https://github.com/rgallor/astarte-device-sdk-rust", branch = "dynamic-introspection" }
-#astarte-message-hub-proto = { path = "../astarte-message-hub-proto-wrapped/astarte-message-hub-proto/rust/astarte-message-hub-proto" }
-astarte-message-hub-proto = { git = "https://github.com/rgallor/astarte-message-hub-proto", branch = "dynamic-introspection-tmp" }
+astarte-message-hub-proto = { git = "https://github.com/rgallor/astarte-message-hub-proto", branch = "dynamic-introspection" }
 async-trait = "0.1.80"
 axum = "0.7.5"
 base64 = "0.22.0"
