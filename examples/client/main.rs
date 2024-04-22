@@ -106,6 +106,7 @@ async fn main() -> Result<(), DynError> {
 
             let elapsed_str = format!("Uptime for node {}: {}", args.uuid, elapsed);
 
+            // TODO: restore the example and create proper checks for add/remove interfaces
             match count {
                 0 => {
                     client
