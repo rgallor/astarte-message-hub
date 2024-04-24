@@ -122,7 +122,7 @@ checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
 [[package]]
 name = "astarte-device-sdk"
 version = "0.7.3"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#1bd32a13b6bcb97ac392de13b1df7139e390fa5e"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#a3986e9cbbdd8672a0f7e00e8b581765d6a63978"
 dependencies = [
  "ahash",
  "astarte-device-sdk-derive",
@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-derive"
 version = "0.7.3"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#1bd32a13b6bcb97ac392de13b1df7139e390fa5e"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#a3986e9cbbdd8672a0f7e00e8b581765d6a63978"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -171,7 +171,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-mock"
 version = "0.7.3"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#1bd32a13b6bcb97ac392de13b1df7139e390fa5e"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=dynamic-introspection#a3986e9cbbdd8672a0f7e00e8b581765d6a63978"
 dependencies = [
  "astarte-device-sdk",
  "async-trait",
@@ -221,11 +221,13 @@ dependencies = [
 [[package]]
 name = "astarte-message-hub-proto"
 version = "0.6.1"
-source = "git+https://github.com/rgallor/astarte-message-hub-proto?branch=dynamic-introspection#ee2b8f398cd9950858a110203b360f0320f5e7b0"
+source = "git+https://github.com/rgallor/astarte-message-hub-proto?branch=dynamic-introspection#bdb5ddd7cff9e4ae5f5bcfde642c55b35dc02fd2"
 dependencies = [
  "chrono",
  "pbjson-types",
  "prost",
+ "serde",
+ "serde_json",
  "thiserror",
  "tonic",
  "uuid",
@@ -961,6 +963,7 @@ dependencies = [
  "eyre",
  "futures",
  "hyper 0.14.28",
+ "itertools 0.12.1",
  "reqwest",
  "serde",
  "serde_json",
@@ -1656,7 +1659,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.6",
  "tokio",
  "tower-service",
  "tracing",
@@ -3939,6 +3942,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

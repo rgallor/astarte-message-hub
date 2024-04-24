@@ -1270,7 +1270,11 @@ mod test {
                     .expect_extend_interfaces()
                     .once()
                     .in_sequence(&mut seq)
-                    .returning(|i: Vec<Interface>| Ok(i.iter().map(|i| i.interface_name().to_string()).collect_vec()));
+                    .returning(|i: Vec<Interface>| {
+                        Ok(i.iter()
+                            .map(|i| i.interface_name().to_string())
+                            .collect_vec())
+                    });
 
                 client
                     .expect_remove_interface()

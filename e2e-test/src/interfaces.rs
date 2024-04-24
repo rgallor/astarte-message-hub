@@ -205,6 +205,31 @@ impl AstarteAggregate for ServerProperty {
     }
 }
 
+pub const ADDITIONAL_DEVICE_DATASTREAM: &str = include_str!(
+    "../interfaces/additional/org.astarte-platform.rust.e2etest.AdditionalDeviceDatastream.json"
+);
+pub const ADDITIONAL_DEVICE_DATASTREAM_NAME: &str =
+    "org.astarte-platform.rust.e2etest.AdditionalDeviceDatastream";
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct AdditionalDeviceDatastream(pub Data);
+
+impl AdditionalDeviceDatastream {
+    pub const fn name() -> &'static str {
+        ADDITIONAL_DEVICE_DATASTREAM_NAME
+    }
+
+    pub const fn interface() -> &'static str {
+        ADDITIONAL_DEVICE_DATASTREAM
+    }
+}
+
+impl AstarteAggregate for AdditionalDeviceDatastream {
+    fn astarte_aggregate(self) -> Result<HashMap<String, AstarteType>, Error> {
+        self.0.astarte_aggregate()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, AstarteAggregate, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Data {

@@ -26,7 +26,7 @@
 
 use astarte_device_sdk::builder::{DeviceBuilder, DeviceSdkBuild};
 use astarte_device_sdk::store::SqliteStore;
-use astarte_device_sdk::transport::mqtt::{Mqtt, MqttConfig};
+use astarte_device_sdk::transport::mqtt::{Credential, Mqtt, MqttConfig};
 use astarte_device_sdk::{DeviceClient, DeviceConnection, EventLoop};
 use eyre::Context;
 use std::convert::identity;
@@ -139,7 +139,7 @@ async fn initialize_astarte_device_sdk(
     let mut mqtt_config = MqttConfig::new(
         &msg_hub_opts.realm,
         msg_hub_opts.device_id.as_ref().unwrap(),
-        msg_hub_opts.credentials_secret.as_ref().unwrap(),
+        Credential::secret(msg_hub_opts.credentials_secret.as_ref().unwrap()),
         &msg_hub_opts.pairing_url,
     );
 
@@ -170,7 +170,7 @@ async fn initialize_astarte_device_sdk(
         .map(|d| format!("sqlite://{d}/database.db"))
         .ok_or_else(|| eyre!("non UTF-8 store directory option"))?;
 
-    let store = SqliteStore::new(&store_path).await?;
+    let store = SqliteStore::from_uri(&store_path).await?;
 
     // create a device instance
     let (client, connection) = builder.store(store).connect(mqtt_config).await?.build();

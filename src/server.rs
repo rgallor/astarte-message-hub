@@ -30,8 +30,8 @@ use std::task::{Context, Poll};
 
 use astarte_message_hub_proto::types::InterfacesJson;
 use astarte_message_hub_proto::AstarteMessage;
-use hyper::{http, Body};
 use futures::FutureExt;
+use hyper::{http, Body};
 use log::{debug, error, info, trace};
 use once_cell::sync::Lazy;
 use tokio::sync::RwLock;
@@ -143,13 +143,13 @@ impl<S> NodeIdInterceptor<S> {
         mut self,
         req: hyper::Request<Body>,
     ) -> Result<S::Response, InterceptorError>
-        where
-            S: Service<hyper::Request<Body>, Response=hyper::Response<BoxBody>>
+    where
+        S: Service<hyper::Request<Body>, Response = hyper::Response<BoxBody>>
             + Clone
             + Send
             + 'static,
-            S::Future: Send + 'static,
-            S::Error: Into<InterceptorError>,
+        S::Future: Send + 'static,
+        S::Error: Into<InterceptorError>,
     {
         static ATTACH_PATH: Lazy<http::uri::PathAndQuery> = Lazy::new(|| {
             http::uri::PathAndQuery::from_static("/astarteplatform.msghub.MessageHub/Attach")
@@ -239,13 +239,13 @@ fn node_id_from_ascii(metadata: &MetadataMap) -> Result<Option<Uuid>, Intercepto
         .map_err(InterceptorError::Uuid)
 }
 
-type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output=T> + Send + 'a>>;
+type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
 impl<S> Service<hyper::Request<Body>> for NodeIdInterceptor<S>
-    where
-        S: Service<hyper::Request<Body>, Response=hyper::Response<BoxBody>> + Clone + Send + 'static,
-        S::Future: Send + 'static,
-        S::Error: Into<InterceptorError>,
+where
+    S: Service<hyper::Request<Body>, Response = hyper::Response<BoxBody>> + Clone + Send + 'static,
+    S::Future: Send + 'static,
+    S::Error: Into<InterceptorError>,
 {
     type Response = S::Response;
     type Error = InterceptorError;
@@ -276,16 +276,15 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
     /// ```no_run
     /// use astarte_message_hub_proto::message_hub_client::MessageHubClient;
     /// use astarte_message_hub_proto::Node;
-    /// use astarte_message_hub_proto::types::InterfaceJson;
+    /// use astarte_message_hub_proto::InterfaceJson;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), tonic::Status> {
-    /// let mut message_hub_client = MessageHubClient::connect("http://[::1]:10000").await.unwrap();
+    ///     let mut message_hub_client = MessageHubClient::connect("http://[::1]:10000").await.unwrap();
     ///
-    ///     let interface_json: InterfaceJson = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
-    ///         .unwrap()
-    ///         .as_slice()
-    ///         .into();
+    ///     let interface_bytes = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
+    ///         .unwrap();
+    ///     let interface_json = InterfaceJson::from_value(interface_bytes.as_slice()).unwrap();
     ///
     ///     let node = Node {
     ///             uuid: "a2d4769f-0338-4f7f-b71d-9f81b41ae13f".to_string(),
@@ -341,20 +340,19 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
     /// Send a message to Astarte for a node attached to the Astarte Message Hub.
     ///
     /// ```no_run
-    /// use astarte_message_hub_proto::message_hub_client::MessageHubClient;
     /// use astarte_message_hub_proto::Node;
+    /// use astarte_message_hub_proto::astarte_message::Payload;
+    /// use astarte_message_hub_proto::message_hub_client::MessageHubClient;
+    /// use astarte_message_hub_proto::{AstarteMessage, InterfaceJson};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), tonic::Status> {
-    /// use astarte_message_hub_proto::astarte_message::Payload;
-    /// use astarte_message_hub_proto::{AstarteMessage, InterfaceJson};
     ///
     ///     let mut message_hub_client = MessageHubClient::connect("http://[::1]:10000").await.unwrap();
     ///
-    ///     let interface_json: InterfaceJson = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
-    ///         .unwrap()
-    ///         .as_slice()
-    ///         .into();
+    ///     let interface_bytes = std::fs::read("/tmp/org.astarteplatform.rust.examples.DeviceDatastream.json")
+    ///         .unwrap();
+    ///     let interface_json = InterfaceJson::from_value(interface_bytes.as_slice()).unwrap();
     ///
     ///     let node = Node {
     ///             uuid: "a2d4769f-0338-4f7f-b71d-9f81b41ae13f".to_string(),
@@ -601,9 +599,11 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.as_bytes(), SERV_OBJ_IFACE.as_bytes()]
-            .as_slice()
-            .into();
+        let interfaces = InterfacesJson::try_from_iter(vec![
+            SERV_PROPS_IFACE.as_bytes(),
+            SERV_OBJ_IFACE.as_bytes(),
+        ])
+        .unwrap();
 
         let node_introspection = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
@@ -654,7 +654,7 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
+        let interfaces = InterfacesJson::try_from_iter([SERV_PROPS_IFACE.as_bytes()]).unwrap();
 
         let node_introspection = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
@@ -748,7 +748,7 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
+        let interfaces = InterfacesJson::try_from_iter([SERV_PROPS_IFACE.as_bytes()]).unwrap();
 
         let node = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
@@ -804,7 +804,7 @@ mod test {
         let astarte_message: AstarteMessageHub<MockAstarteHandler> =
             AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
+        let interfaces = InterfacesJson::try_from_iter([SERV_PROPS_IFACE.as_bytes()]).unwrap();
 
         let node = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),
@@ -839,7 +839,7 @@ mod test {
 
         let astarte_message = AstarteMessageHub::new(mock_astarte);
 
-        let interfaces = vec![SERV_PROPS_IFACE.as_bytes()].as_slice().into();
+        let interfaces = InterfacesJson::try_from_iter([SERV_PROPS_IFACE.as_bytes()]).unwrap();
 
         let node = Node {
             uuid: "550e8400-e29b-41d4-a716-446655440000".to_owned(),

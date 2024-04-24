@@ -18,6 +18,7 @@
 
 use std::{net::Ipv6Addr, path::Path, time::Duration};
 
+use astarte_device_sdk::transport::mqtt::Credential;
 use astarte_device_sdk::{
     builder::DeviceBuilder, prelude::*, store::SqliteStore, transport::mqtt::MqttConfig,
 };
@@ -55,7 +56,12 @@ pub async fn init_message_hub(
     let credentials_secret = read_env("E2E_CREDENTIAL_SECRET")?;
     let pairing_url = read_env("E2E_PAIRING_URL")?;
 
-    let mut mqtt_config = MqttConfig::new(realm, device_id, credentials_secret, pairing_url);
+    let mut mqtt_config = MqttConfig::new(
+        realm,
+        device_id,
+        Credential::secret(credentials_secret),
+        pairing_url,
+    );
 
     if read_env("E2E_IGNORE_SSL").is_ok() {
         mqtt_config.ignore_ssl_errors();
@@ -64,7 +70,7 @@ pub async fn init_message_hub(
     let path = path.to_str().ok_or_eyre("invalid_path")?;
 
     let uri = format!("sqlite://{path}/store.db");
-    let store = SqliteStore::new(&uri).await?;
+    let store = SqliteStore::from_uri(&uri).await?;
 
     let (client, mut connection) = DeviceBuilder::new()
         .store(store)
