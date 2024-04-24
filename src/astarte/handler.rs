@@ -59,6 +59,7 @@ pub enum DeviceError {
     Convert(#[from] MessageHubProtoError),
     /// subscriber already disconnected
     Disconnected,
+    // TODO: check if still necessary
     /// interface json is not UTF-8
     InterfaceNotUtf8(#[from] Utf8Error),
     /// invalid interface json in node introspection
