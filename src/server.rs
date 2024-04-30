@@ -28,8 +28,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use astarte_message_hub_proto::types::InterfacesJson;
-use astarte_message_hub_proto::AstarteMessage;
+use astarte_message_hub_proto::{AstarteMessage, InterfacesJson};
 use futures::FutureExt;
 use hyper::{http, Body};
 use log::{debug, error, info, trace};
@@ -320,7 +319,7 @@ impl<T: Clone + AstartePublisher + AstarteSubscriber + 'static>
         // if `interfaces_json` is None it means the list of interfaces is empty
         let interfaces_json = node.interface_jsons.unwrap_or_default();
 
-        let astarte_node = AstarteNode::new(id, interfaces_json.into());
+        let astarte_node = AstarteNode::new(id, interfaces_json);
 
         let rx = match self.astarte_handler.subscribe(&astarte_node).await {
             Ok(rx) => rx,
@@ -986,10 +985,7 @@ mod test {
 
         let msg_hub_nodes = HashMap::from([(
             TEST_UUID,
-            AstarteNode::new(
-                TEST_UUID,
-                astarte_message_hub_proto::types::InterfacesJson::default(),
-            ),
+            AstarteNode::new(TEST_UUID, InterfacesJson::default()),
         )]);
 
         let mut service = create_node_interceptor_service(msg_hub_nodes);

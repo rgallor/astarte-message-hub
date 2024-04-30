@@ -221,7 +221,7 @@ dependencies = [
 [[package]]
 name = "astarte-message-hub-proto"
 version = "0.6.2"
-source = "git+https://github.com/rgallor/astarte-message-hub-proto?branch=dynamic-introspection#b49ecfa805467a55718f19947163e712d5d6509e"
+source = "git+https://github.com/rgallor/astarte-message-hub-proto?branch=dynamic-introspection#bd102330e89f7eab70e284b9e847c1fd9717d9a4"
 dependencies = [
  "chrono",
  "pbjson-types",
@@ -1675,7 +1675,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.6",
  "tokio",
  "tower-service",
  "tracing",

@@ -32,6 +32,7 @@ use astarte_message_hub_proto::{
     InterfacesJson, InterfacesName,
 };
 
+use astarte_message_hub_proto::types::InterfaceJson;
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::{debug, error, info};
@@ -229,8 +230,10 @@ impl AstarteSubscriber for DevicePublisher {
 
         let introspection: Vec<Interface> = astarte_node
             .introspection
+            .interfaces_json
             .iter()
-            .map(|i| Interface::try_from(i.clone()))
+            .map(|i| InterfaceJson::from(i.clone()))
+            .map(Interface::try_from)
             .try_collect()?;
 
         self.client.extend_interfaces(introspection.clone()).await?;
@@ -254,8 +257,10 @@ impl AstarteSubscriber for DevicePublisher {
             let subscribers_guard = self.subscribers.read().await;
             astarte_node
                 .introspection
+                .interfaces_json
                 .iter()
-                .filter_map(|interface| interface.clone().try_into().ok())
+                .map(|i| InterfaceJson::from(i.clone()))
+                .filter_map(|interface| interface.try_into().ok())
                 .filter(|interface| {
                     subscribers_guard
                         .iter()
@@ -301,11 +306,11 @@ impl AstarteSubscriber for DevicePublisher {
             return Err(AstarteMessageHubError::NonExistentNode(*node_id));
         };
 
-        let interfaces = astarte_message_hub_proto::types::InterfacesJson::from(interfaces);
-
         let interfaces: Vec<Interface> = interfaces
+            .interfaces_json
             .iter()
-            .map(|i| Interface::try_from(i.clone()))
+            .map(|i| InterfaceJson::from(i.clone()))
+            .map(Interface::try_from)
             .try_collect()?;
 
         info!("extending interfaces with {interfaces:?}");
@@ -519,7 +524,7 @@ mod test {
             })
             .returning(|_| Ok(vec!["org.astarte-platform.test.test".to_string()]));
 
-        let interfaces = [SERV_PROPS_IFACE].as_slice().into();
+        let interfaces = InterfacesJson::from_iter(vec![SERV_PROPS_IFACE.as_bytes().to_vec()]);
 
         let astarte_node = AstarteNode::new(
             "550e8400-e29b-41d4-a716-446655440000".parse().unwrap(),
@@ -539,7 +544,7 @@ mod test {
     #[tokio::test]
     async fn subscribe_failed_invalid_interface() {
         let device_sdk = DeviceClient::<SqliteStore>::default();
-        let interfaces = ["INVALID"].as_slice().into();
+        let interfaces = InterfacesJson::from_iter(vec![b"INVALID".to_vec()]);
 
         let astarte_node = AstarteNode::new(
             "550e8400-e29b-41d4-a716-446655440000".parse().unwrap(),
@@ -568,7 +573,7 @@ mod test {
         let mut client = DeviceClient::<SqliteStore>::default();
         let mut connection = DeviceConnection::<SqliteStore, Grpc>::default();
 
-        let interfaces = [SERV_PROPS_IFACE].as_slice().into();
+        let interfaces = InterfacesJson::from_iter(vec![SERV_PROPS_IFACE.as_bytes().to_vec()]);
 
         let astarte_node = AstarteNode::new(
             "550e8400-e29b-41d4-a716-446655440000".parse().unwrap(),
@@ -1254,7 +1259,10 @@ mod test {
 
     #[tokio::test]
     async fn detach_node_success() {
-        let interfaces = [SERV_PROPS_IFACE, SERV_OBJ_IFACE].as_slice().into();
+        let interfaces = InterfacesJson::from_iter(vec![
+            SERV_PROPS_IFACE.as_bytes().to_vec(),
+            SERV_OBJ_IFACE.as_bytes().to_vec(),
+        ]);
 
         let mut client = DeviceClient::<SqliteStore>::default();
         let mut seq = mockall::Sequence::new();
@@ -1301,7 +1309,7 @@ mod test {
 
     #[tokio::test]
     async fn detach_node_unsubscribe_failed() {
-        let interfaces = [SERV_PROPS_IFACE].as_slice().into();
+        let interfaces = InterfacesJson::from_iter(vec![SERV_PROPS_IFACE.as_bytes().to_vec()]);
 
         let mut client = DeviceClient::<SqliteStore>::new();
 
