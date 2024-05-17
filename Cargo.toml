@@ -66,9 +66,9 @@ serial_test = { workspace = true }
 tempfile = { workspace = true }
 
 [workspace.dependencies]
-astarte-device-sdk = { git = "https://github.com/astarte-platform/astarte-device-sdk-rust" }
-astarte-device-sdk-mock = { git = "https://github.com/astarte-platform/astarte-device-sdk-rust" }
-astarte-message-hub-proto = { git = "https://github.com/astarte-platform/astarte-message-hub-proto" }
+astarte-device-sdk = { git = "https://github.com/rgallor/astarte-device-sdk-rust", branch = "refactor/detach" }
+astarte-device-sdk-mock = { git = "https://github.com/rgallor/astarte-device-sdk-rust", branch = "refactor/detach" }
+astarte-message-hub-proto = { git = "https://github.com/astarte-platform/astarte-message-hub-proto.git" }
 async-trait = "0.1.80"
 axum = "0.7.5"
 base64 = "0.22.0"
