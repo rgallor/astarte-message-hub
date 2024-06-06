@@ -610,7 +610,14 @@ mod test {
 
         let mut subscription = subscribe_result.unwrap();
 
-        let astarte_message = subscription.receiver.recv().await.unwrap().unwrap();
+        let astarte_message = subscription
+            .receiver
+            .recv()
+            .await
+            .unwrap()
+            .unwrap()
+            .take_message()
+            .unwrap();
 
         assert_eq!(expected_interface_name, astarte_message.interface_name);
         assert_eq!(path, astarte_message.path);
