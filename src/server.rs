@@ -31,7 +31,7 @@ use std::task::{Context, Poll};
 use astarte_device_sdk::Interface;
 use astarte_message_hub_proto::message_hub_server::MessageHub;
 use astarte_message_hub_proto::{
-    AstarteMessage, AstarteMessageResult, InterfacesJson, InterfacesName, Node,
+    AstarteMessage, AstarteMessageResult, InterfacesJson, InterfacesName, MessageHubResult, Node,
 };
 use hyper::{http, Body, Uri};
 use itertools::Itertools;
@@ -108,7 +108,7 @@ where
         Ok(Response::new(ReceiverStream::new(sub.receiver)))
     }
 
-    async fn detach_node(&self, id: &Uuid) -> Resp<Empty> {
+    async fn detach_node(&self, id: &Uuid) -> Resp<MessageHubResult> {
         info!("Node {id} Detach Request");
 
         let mut nodes = self.nodes.write().await;
@@ -119,14 +119,14 @@ where
 
         self.introspection.remove_many(&removed).await;
 
-        Ok(Response::new(Empty {}))
+        Ok(Response::new(MessageHubResult::empty()))
     }
 
     async fn add_interfaces_node(
         &self,
         node_id: &Uuid,
         interfaces_json: &InterfacesJson,
-    ) -> Resp<Empty> {
+    ) -> Resp<MessageHubResult> {
         let to_add = interfaces_json
             .interfaces_json
             .iter()
@@ -141,14 +141,14 @@ where
             .await?;
 
         self.introspection.store_many(interfaces.iter()).await;
-        Ok(Response::new(Empty {}))
+        Ok(Response::new(MessageHubResult::empty()))
     }
 
     async fn remove_interfaces_node(
         &self,
         node_id: &Uuid,
         interfaces_name: InterfacesName,
-    ) -> Resp<Empty> {
+    ) -> Resp<MessageHubResult> {
         let to_remove = HashSet::from_iter(interfaces_name.names);
 
         let removed = self
@@ -158,7 +158,7 @@ where
 
         self.introspection.remove_many(&removed).await;
 
-        Ok(Response::new(Empty {}))
+        Ok(Response::new(MessageHubResult::empty()))
     }
 }
 
@@ -446,7 +446,10 @@ where
     ///     Ok(())
     ///
     /// }
-    async fn send(&self, request: Request<AstarteMessage>) -> Result<Response<Empty>, Status> {
+    async fn send(
+        &self,
+        request: Request<AstarteMessage>,
+    ) -> Result<Response<MessageHubResult>, Status> {
         let node_id = request.get_node_id()?;
         debug!("Node {node_id} Send Request");
 
@@ -454,23 +457,24 @@ where
 
         if let Err(err) = self.astarte_handler.publish(&astarte_message).await {
             let err_msg = format!("Unable to publish astarte message, err: {:?}", err);
+            // TODO: check when to send MessageHubResult::Error()
             Err(Status::internal(err_msg))
         } else {
-            Ok(Response::new(Empty {}))
+            Ok(Response::new(MessageHubResult::empty()))
         }
     }
 
     /// Remove an existing Node from Astarte Message Hub.
-    async fn detach(&self, request: Request<Empty>) -> Result<Response<Empty>, Status> {
+    async fn detach(&self, request: Request<Empty>) -> Result<Response<MessageHubResult>, Status> {
         let id = request.get_node_id()?;
-
+        // TODO: check when to send MessageHubResult::Error()
         self.detach_node(id).await.map_err(Status::from)
     }
 
     async fn add_interfaces(
         &self,
         request: Request<InterfacesJson>,
-    ) -> Result<Response<Empty>, Status> {
+    ) -> Result<Response<MessageHubResult>, Status> {
         // retrieve the node id
         let node_id = request.get_node_id()?;
 
@@ -478,6 +482,7 @@ where
 
         let interfaces = request.get_ref();
 
+        // TODO: check when to send MessageHubResult::Error()
         self.add_interfaces_node(node_id.as_ref(), interfaces)
             .await
             .map_err(Status::from)
@@ -486,13 +491,14 @@ where
     async fn remove_interfaces(
         &self,
         request: Request<InterfacesName>,
-    ) -> Result<Response<Empty>, Status> {
+    ) -> Result<Response<MessageHubResult>, Status> {
         // retrieve the node id
         let node_id = *request.get_node_id()?;
 
         info!("Node {node_id} Remove Interfaces Request");
         let interfaces = request.into_inner();
 
+        // TODO: check when to send MessageHubResult::Error()
         self.remove_interfaces_node(node_id.as_ref(), interfaces)
             .await
             .map_err(Status::from)
