@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use astarte_device_sdk::interface::error::InterfaceError;
 use astarte_device_sdk::introspection::AddInterfaceError;
 use astarte_device_sdk::transport::grpc::convert::MessageHubProtoError;
+use astarte_message_hub_proto::MessageHubError as MessageHubErrorProto;
 use log::{debug, error};
 use tonic::{Code, Status};
 use uuid::Uuid;
@@ -126,6 +127,35 @@ impl From<AstarteMessageHubError> for Status {
         };
 
         Status::new(code, value.to_string())
+    }
+}
+
+/// Differentiate between errors that should be reported to a Node and those internal to the Message
+/// Hub Server
+#[derive(Debug)]
+pub enum ErrorVariant {
+    /// Message Hub error
+    MsgHub(AstarteMessageHubError),
+    /// Protobuf error
+    Proto(MessageHubErrorProto),
+}
+
+impl AstarteMessageHubError {
+    pub(crate) fn into_proto_err(self) -> ErrorVariant {
+        use astarte_message_hub_proto::message_hub_error::ErrorCode;
+
+        debug!("error {self:?}");
+
+        match self {
+            AstarteMessageHubError::Astarte(err) => ErrorVariant::Proto(
+                MessageHubErrorProto::error(ErrorCode::AstarteSdkError, err.to_string()),
+            ),
+            AstarteMessageHubError::AstarteInvalidData(msg) => {
+                ErrorVariant::Proto(MessageHubErrorProto::error(ErrorCode::InvalidData, msg))
+            }
+            // TODO: check if other error variants should be converted into MessageHubErrorProto errors
+            err => ErrorVariant::MsgHub(err),
+        }
     }
 }
 

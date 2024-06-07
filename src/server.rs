@@ -49,7 +49,7 @@ use uuid::Uuid;
 use crate::astarte::handler::DeviceError;
 use crate::astarte::{AstartePublisher, AstarteSubscriber};
 use crate::cache::Introspection;
-use crate::error::AstarteMessageHubError;
+use crate::error::{AstarteMessageHubError, ErrorVariant};
 
 type Resp<T> = Result<Response<T>, AstarteMessageHubError>;
 
@@ -455,12 +455,17 @@ where
 
         let astarte_message = request.into_inner();
 
-        if let Err(err) = self.astarte_handler.publish(&astarte_message).await {
-            let err_msg = format!("Unable to publish astarte message, err: {:?}", err);
-            // TODO: check when to send MessageHubResult::Error()
-            Err(Status::internal(err_msg))
-        } else {
-            Ok(Response::new(MessageHubResult::empty()))
+        // TODO: check which errors returned by publish() should be converted into MessageHubResult::error()
+        let Err(err) = self.astarte_handler.publish(&astarte_message).await else {
+            return Ok(Response::new(MessageHubResult::empty()));
+        };
+
+        match err.into_proto_err() {
+            ErrorVariant::MsgHub(msg_hub_err) => {
+                let err_msg = format!("Unable to publish astarte message, err: {:?}", msg_hub_err);
+                Err(Status::internal(err_msg))
+            }
+            ErrorVariant::Proto(proto_err) => Ok(Response::new(MessageHubResult::error(proto_err))),
         }
     }
 
