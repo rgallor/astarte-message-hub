@@ -29,6 +29,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use astarte_device_sdk::Interface;
+use astarte_message_hub_proto::message_hub_error::ErrorCode;
 use astarte_message_hub_proto::message_hub_server::MessageHub;
 use astarte_message_hub_proto::{
     AstarteMessage, AstarteMessageResult, InterfacesJson, InterfacesName, MessageHubResult, Node,
@@ -139,6 +140,15 @@ where
             .astarte_handler
             .extend_interfaces(node_id, to_add)
             .await?;
+
+        // TODO: return Ok(MsgHubProtoError::AstarteSdkError("failed to add interface ..."), like below
+        // let interfaces = match self
+        //     .astarte_handler
+        //     .extend_interfaces(node_id, to_add)
+        //     .await {
+        //     Ok(interfaces) => interfaces,
+        //     Err(err) => return Ok(Response::new(MessageHubResult::error(MessageHubErrorProto::error(ErrorCode::AstarteSdkError, err.to_string()))))
+        // };
 
         self.introspection.store_many(interfaces.iter()).await;
         Ok(Response::new(MessageHubResult::empty()))
@@ -353,18 +363,21 @@ where
 
 /// Retrieve information from a [`Request`]
 pub trait RequestExt {
-    fn get_node_id(&self) -> Result<&NodeId, Status>;
+    fn get_node_id(&self) -> Result<&NodeId, astarte_message_hub_proto::MessageHubError>;
 }
 
 impl<R> RequestExt for Request<R> {
-    fn get_node_id(&self) -> Result<&NodeId, Status> {
+    fn get_node_id(&self) -> Result<&NodeId, astarte_message_hub_proto::MessageHubError> {
         if let Some(node_id) = self.extensions().get::<NodeId>() {
             trace!("node id {node_id} checked");
             return Ok(node_id);
         }
 
         error!("missing node id");
-        Err(Status::failed_precondition("missing node id"))
+        Err(astarte_message_hub_proto::MessageHubError::error(
+            ErrorCode::Unauthorized,
+            "missing node id",
+        ))
     }
 }
 
@@ -450,12 +463,15 @@ where
         &self,
         request: Request<AstarteMessage>,
     ) -> Result<Response<MessageHubResult>, Status> {
-        let node_id = request.get_node_id()?;
+        let node_id = match request.get_node_id() {
+            Ok(id) => id,
+            Err(err) => return Ok(Response::new(MessageHubResult::error(err))),
+        };
+
         debug!("Node {node_id} Send Request");
 
         let astarte_message = request.into_inner();
 
-        // TODO: check which errors returned by publish() should be converted into MessageHubResult::error()
         let Err(err) = self.astarte_handler.publish(&astarte_message).await else {
             return Ok(Response::new(MessageHubResult::empty()));
         };
@@ -471,9 +487,13 @@ where
 
     /// Remove an existing Node from Astarte Message Hub.
     async fn detach(&self, request: Request<Empty>) -> Result<Response<MessageHubResult>, Status> {
-        let id = request.get_node_id()?;
+        let node_id = match request.get_node_id() {
+            Ok(id) => id,
+            Err(err) => return Ok(Response::new(MessageHubResult::error(err))),
+        };
+
         // TODO: check when to send MessageHubResult::Error()
-        self.detach_node(id).await.map_err(Status::from)
+        self.detach_node(node_id).await.map_err(Status::from)
     }
 
     async fn add_interfaces(
@@ -481,13 +501,15 @@ where
         request: Request<InterfacesJson>,
     ) -> Result<Response<MessageHubResult>, Status> {
         // retrieve the node id
-        let node_id = request.get_node_id()?;
+        let node_id = match request.get_node_id() {
+            Ok(id) => id,
+            Err(err) => return Ok(Response::new(MessageHubResult::error(err))),
+        };
 
         info!("Node {node_id} Add Interfaces Request");
 
         let interfaces = request.get_ref();
 
-        // TODO: check when to send MessageHubResult::Error()
         self.add_interfaces_node(node_id.as_ref(), interfaces)
             .await
             .map_err(Status::from)
@@ -498,7 +520,10 @@ where
         request: Request<InterfacesName>,
     ) -> Result<Response<MessageHubResult>, Status> {
         // retrieve the node id
-        let node_id = *request.get_node_id()?;
+        let node_id = match request.get_node_id() {
+            Ok(id) => *id,
+            Err(err) => return Ok(Response::new(MessageHubResult::error(err))),
+        };
 
         info!("Node {node_id} Remove Interfaces Request");
         let interfaces = request.into_inner();
