@@ -295,6 +295,11 @@ impl AstarteSubscriber for DevicePublisher {
             debug!("interfaces to remove {to_remove:?}");
 
             self.client.remove_interfaces(to_remove).await?
+
+            // errors returned:                                    add to proto
+            // ________________________________________________________________
+            // - Error::Disconnected                                   (X)
+            // - Error::Grpc(GrpcError::InterfacesSerialization(err))  (?)
         };
 
         subscribers.remove(id);
@@ -323,6 +328,14 @@ impl AstarteSubscriber for DevicePublisher {
             .client
             .extend_interfaces_vec(to_add.values().cloned().collect())
             .await?;
+
+        // errors returned:                                    add to proto
+        // ________________________________________________________________
+        // - Error::Disconnected                                   (X)
+        // - AddInterfaceError::Interface                          (V)
+        // - GrpcError::Status(s)                                  (?)
+        // - Error::Grpc(GrpcError::InterfacesSerialization(err))  (?)
+
         info!("Node interfaces extended");
 
         let added_interfaces = added_names
@@ -367,6 +380,12 @@ impl AstarteSubscriber for DevicePublisher {
             .client
             .remove_interfaces_vec(to_remove_from_intr)
             .await?;
+
+        // errors returned:                                    add to proto
+        // ________________________________________________________________
+        // - Error::Disconnected                                   (X)
+        // - Error::Grpc(GrpcError::InterfacesSerialization(err))  (?)
+
         info!("interfaces removed");
 
         let sub = rw_subscribers
