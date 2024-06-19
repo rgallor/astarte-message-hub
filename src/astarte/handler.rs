@@ -34,6 +34,7 @@ use astarte_device_sdk::{
 };
 use astarte_message_hub_proto::{
     astarte_data_type::Data, astarte_message::Payload, AstarteDataTypeIndividual, AstarteMessage,
+    MessageHubEvent,
 };
 use async_trait::async_trait;
 use itertools::Itertools;
@@ -138,7 +139,7 @@ impl DeviceSubscriber {
             subscriber
                 .sender
                 // This is needed to satisfy the tonic trait
-                .send(Ok(msg.clone()))
+                .send(Ok(msg.clone().into()))
                 .await
                 .map_err(|_| DeviceError::Disconnected)?;
         }
@@ -151,7 +152,7 @@ impl DeviceSubscriber {
 #[derive(Clone)]
 pub struct Subscriber {
     introspection: HashSet<String>,
-    sender: Sender<Result<AstarteMessage, Status>>,
+    sender: Sender<Result<MessageHubEvent, Status>>,
 }
 
 impl Debug for Subscriber {
@@ -610,7 +611,14 @@ mod test {
 
         let mut subscription = subscribe_result.unwrap();
 
-        let astarte_message = subscription.receiver.recv().await.unwrap().unwrap();
+        let astarte_message = subscription
+            .receiver
+            .recv()
+            .await
+            .unwrap()
+            .unwrap()
+            .take_message()
+            .unwrap();
 
         assert_eq!(expected_interface_name, astarte_message.interface_name);
         assert_eq!(path, astarte_message.path);

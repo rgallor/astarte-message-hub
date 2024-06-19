@@ -121,8 +121,8 @@ checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
 
 [[package]]
 name = "astarte-device-sdk"
-version = "0.8.1"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=refactor/detach#555fb8b862fc065d3320bc89be497f98b1de97d5"
+version = "0.8.2"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=change-msg-api-new#68e1cb59ba785bb22d8c087fa144af0949b8a854"
 dependencies = [
  "ahash",
  "astarte-device-sdk-derive",
@@ -160,8 +160,8 @@ dependencies = [
 
 [[package]]
 name = "astarte-device-sdk-derive"
-version = "0.8.1"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=refactor/detach#555fb8b862fc065d3320bc89be497f98b1de97d5"
+version = "0.8.2"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=change-msg-api-new#68e1cb59ba785bb22d8c087fa144af0949b8a854"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -170,8 +170,8 @@ dependencies = [
 
 [[package]]
 name = "astarte-device-sdk-mock"
-version = "0.8.1"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=refactor/detach#555fb8b862fc065d3320bc89be497f98b1de97d5"
+version = "0.8.2"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust?branch=change-msg-api-new#68e1cb59ba785bb22d8c087fa144af0949b8a854"
 dependencies = [
  "astarte-device-sdk",
  "async-trait",
@@ -220,7 +220,7 @@ dependencies = [
 [[package]]
 name = "astarte-message-hub-proto"
 version = "0.6.2"
-source = "git+https://github.com/astarte-platform/astarte-message-hub-proto.git#08ff0df376995d56b6c9d823ccf884afaeb7bdc7"
+source = "git+https://github.com/rgallor/astarte-message-hub-proto.git?branch=change-msg-api#e0ba460e066bc291af47fa10ac71e852d16d74ea"
 dependencies = [
  "chrono",
  "pbjson-types",
