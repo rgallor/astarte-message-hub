@@ -642,6 +642,21 @@ mod test {
         }
         "#;
 
+    async fn attach(
+        mock_astarte: MockAstarteHandler,
+    ) -> Result<tonic::Response<ReceiverStream<Result<MessageHubEvent, Status>>>, Status> {
+        let tmp = tempfile::tempdir().unwrap();
+        let astarte_message_hub: AstarteMessageHub<MockAstarteHandler> =
+            AstarteMessageHub::new(mock_astarte, tmp.path());
+
+        let interfaces = vec![SERV_PROPS_IFACE.to_string(), SERV_OBJ_IFACE.to_string()];
+        let node_introspection = Node::new(&TEST_UUID, interfaces);
+
+        let req_node = Request::new(node_introspection);
+
+        astarte_message_hub.attach(req_node).await
+    }
+
     #[tokio::test]
     async fn attach_success_node() {
         let mut mock_astarte = MockAstarteHandler::new();
@@ -656,15 +671,7 @@ mod test {
             .expect_clone()
             .returning(MockAstarteHandler::new);
 
-        let tmp = tempfile::tempdir().unwrap();
-        let astarte_message: AstarteMessageHub<MockAstarteHandler> =
-            AstarteMessageHub::new(mock_astarte, tmp.path());
-
-        let interfaces = vec![SERV_PROPS_IFACE.to_string(), SERV_OBJ_IFACE.to_string()];
-        let node_introspection = Node::new(&TEST_UUID, interfaces);
-
-        let req_node = Request::new(node_introspection);
-        let attach_result = astarte_message.attach(req_node).await;
+        let attach_result = attach(mock_astarte).await;
 
         assert!(
             attach_result.is_ok(),
@@ -672,6 +679,40 @@ mod test {
             attach_result.unwrap_err()
         );
     }
+
+    #[tokio::test]
+    async fn send_message_hub_event() {
+        let (tx, rx) = mpsc::channel(2);
+
+        let mut mock_astarte = MockAstarteHandler::new();
+        mock_astarte.expect_subscribe().return_once(|node| {
+            Ok(Subscription {
+                added_interfaces: node.introspection.values().cloned().collect(),
+                receiver: rx,
+            })
+        });
+        mock_astarte
+            .expect_clone()
+            .returning(MockAstarteHandler::new);
+
+        let attach_result = attach(mock_astarte).await;
+
+        // send a custom error to the Node
+        let msghub_event = MessageHubEvent::from_error(&AstarteMessageHubError::Astarte(
+            astarte_device_sdk::Error::Interface(
+                astarte_device_sdk::interface::error::InterfaceError::MajorMinor,
+            ),
+        ));
+        if let Err(err) = tx.send(Ok(msghub_event.clone())).await {
+            panic!("send error: {err:?}");
+        }
+
+        let mut receiver = attach_result.unwrap().into_inner().into_inner();
+        let event = receiver.recv().await.unwrap().unwrap();
+        assert_eq!(event, msghub_event);
+    }
+
+    // TODO: test that, when sending MessageHubEvent::Error, this is received by all nodes
 
     #[tokio::test]
     async fn attach_reject_invalid_uuid_node() {
