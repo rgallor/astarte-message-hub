@@ -30,9 +30,7 @@ use std::task::{Context, Poll};
 
 use astarte_device_sdk::Interface;
 use astarte_message_hub_proto::message_hub_server::MessageHub;
-use astarte_message_hub_proto::{
-    AstarteMessage, InterfacesJson, InterfacesName, MessageHubEvent, Node,
-};
+use astarte_message_hub_proto::{AstarteMessage, InterfacesJson, InterfacesName, MessageHubEvent, Node, Property, PropertyIdentifier, StoredProperties, StoredPropertiesFilter};
 use hyper::{http, Body, Uri};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
@@ -531,6 +529,18 @@ where
         self.remove_interfaces_node(node_id.as_ref(), interfaces)
             .await
             .map_err(Status::from)
+    }
+
+    async fn get_properties(&self, _request: Request<InterfacesName>) -> Result<Response<StoredProperties>, Status> {
+        todo!()
+    }
+
+    async fn get_all_properties(&self, _request: Request<StoredPropertiesFilter>) -> Result<Response<StoredProperties>, Status> {
+        todo!()
+    }
+
+    async fn get_property(&self, _request: Request<PropertyIdentifier>) -> Result<Response<Property>, Status> {
+        todo!()
     }
 }
 
