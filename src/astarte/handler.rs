@@ -22,9 +22,11 @@
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
+use std::future::Future;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use astarte_device_sdk::store::StoredProp;
 use astarte_device_sdk::{
     client::RecvError,
     interface::error::InterfaceError,
@@ -504,6 +506,35 @@ impl AstartePublisher for DevicePublisher {
                 }
             }
         }
+    }
+}
+
+impl PropAccess for DevicePublisher {
+    fn property(
+        &self,
+        interface: &str,
+        path: &str,
+    ) -> impl Future<Output = Result<Option<AstarteType>, AstarteError>> + Send {
+        self.client.property(interface, path)
+    }
+
+    fn interface_props(
+        &self,
+        interface: &str,
+    ) -> impl Future<Output = Result<Vec<StoredProp>, AstarteError>> + Send {
+        self.client.interface_props(interface)
+    }
+
+    fn all_props(&self) -> impl Future<Output = Result<Vec<StoredProp>, AstarteError>> + Send {
+        self.client.all_props()
+    }
+
+    fn device_props(&self) -> impl Future<Output = Result<Vec<StoredProp>, AstarteError>> + Send {
+        self.client.device_props()
+    }
+
+    fn server_props(&self) -> impl Future<Output = Result<Vec<StoredProp>, AstarteError>> + Send {
+        self.client.server_props()
     }
 }
 
