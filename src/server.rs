@@ -28,9 +28,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use astarte_device_sdk::properties::PropAccess;
+use astarte_device_sdk::transport::grpc::types::StoredProperties;
 use astarte_device_sdk::Interface;
 use astarte_message_hub_proto::message_hub_server::MessageHub;
-use astarte_message_hub_proto::{AstarteMessage, InterfacesJson, InterfacesName, MessageHubEvent, Node, Property, PropertyIdentifier, StoredProperties, StoredPropertiesFilter};
+use astarte_message_hub_proto::{
+    AstarteDataTypeIndividual, AstarteMessage, InterfacesJson, InterfacesName, MessageHubEvent,
+    Node, Property, PropertyIdentifier, StoredProperties as ProtoStoredProperties,
+    StoredPropertiesFilter,
+};
 use hyper::{http, Body, Uri};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
@@ -52,7 +58,7 @@ use crate::error::AstarteMessageHubError;
 type Resp<T> = Result<Response<T>, AstarteMessageHubError>;
 
 /// Main struct for the Astarte message hub.
-pub struct AstarteMessageHub<T: Clone + AstartePublisher + AstarteSubscriber> {
+pub struct AstarteMessageHub<T: Clone + AstartePublisher + AstarteSubscriber + PropAccess> {
     /// The nodes connected to the message hub.
     nodes: Arc<RwLock<HashMap<Uuid, AstarteNode>>>,
     /// The Astarte handler used to communicate with Astarte.
@@ -62,7 +68,7 @@ pub struct AstarteMessageHub<T: Clone + AstartePublisher + AstarteSubscriber> {
 
 impl<T> AstarteMessageHub<T>
 where
-    T: 'static + Clone + AstartePublisher + AstarteSubscriber,
+    T: 'static + Clone + AstartePublisher + AstarteSubscriber + PropAccess,
 {
     /// Instantiate a new Astarte message hub.
     ///
@@ -157,6 +163,56 @@ where
         self.introspection.remove_many(&removed).await;
 
         Ok(Response::new(Empty {}))
+    }
+
+    async fn get_node_properties(
+        &self,
+        ifaces_name: InterfacesName,
+    ) -> Resp<ProtoStoredProperties> {
+        let mut props = vec![];
+
+        for iface in ifaces_name.names {
+            let iface_props = self.astarte_handler.interface_props(&iface).await?;
+            props.extend_from_slice(&iface_props);
+        }
+
+        let res = StoredProperties::from_props(props);
+
+        Ok(Response::new(res.0))
+    }
+
+    async fn get_node_all_properties(
+        &self,
+        filter: StoredPropertiesFilter,
+    ) -> Resp<ProtoStoredProperties> {
+        let props = match filter.ownership {
+            // device owned
+            Some(1) => self.astarte_handler.device_props().await?,
+            // server owned
+            Some(2) => self.astarte_handler.server_props().await?,
+            // all props
+            None | Some(_) => self.astarte_handler.all_props().await?,
+        };
+
+        let res = StoredProperties::from_props(props);
+
+        Ok(Response::new(res.0))
+    }
+
+    async fn get_node_property(&self, prop_req: PropertyIdentifier) -> Resp<Property> {
+        let PropertyIdentifier {
+            interface_name,
+            path,
+        } = prop_req;
+
+        // retrieve the property value
+        let value = self
+            .astarte_handler
+            .property(&interface_name, &path)
+            .await?
+            .map(AstarteDataTypeIndividual::from);
+
+        Ok(Response::new(Property { path, value }))
     }
 }
 
@@ -368,7 +424,7 @@ impl<R> RequestExt for Request<R> {
 #[tonic::async_trait]
 impl<T> MessageHub for AstarteMessageHub<T>
 where
-    T: Clone + AstartePublisher + AstarteSubscriber + 'static,
+    T: Clone + AstartePublisher + AstarteSubscriber + PropAccess + 'static,
 {
     type AttachStream = ReceiverStream<Result<MessageHubEvent, Status>>;
 
@@ -531,16 +587,47 @@ where
             .map_err(Status::from)
     }
 
-    async fn get_properties(&self, _request: Request<InterfacesName>) -> Result<Response<StoredProperties>, Status> {
-        todo!()
+    async fn get_properties(
+        &self,
+        request: Request<InterfacesName>,
+    ) -> Result<Response<ProtoStoredProperties>, Status> {
+        // retrieve the node id
+        let node_id = *request.get_node_id()?;
+
+        info!("Node {node_id} Get Properties Request");
+        let prop_req = request.into_inner();
+
+        self.get_node_properties(prop_req)
+            .await
+            .map_err(Status::from)
     }
 
-    async fn get_all_properties(&self, _request: Request<StoredPropertiesFilter>) -> Result<Response<StoredProperties>, Status> {
-        todo!()
+    async fn get_all_properties(
+        &self,
+        request: Request<StoredPropertiesFilter>,
+    ) -> Result<Response<ProtoStoredProperties>, Status> {
+        // retrieve the node id
+        let node_id = *request.get_node_id()?;
+
+        info!("Node {node_id} Get All Properties Request");
+        let filter = request.into_inner();
+
+        self.get_node_all_properties(filter)
+            .await
+            .map_err(Status::from)
     }
 
-    async fn get_property(&self, _request: Request<PropertyIdentifier>) -> Result<Response<Property>, Status> {
-        todo!()
+    async fn get_property(
+        &self,
+        request: Request<PropertyIdentifier>,
+    ) -> Result<Response<Property>, Status> {
+        // retrieve the node id
+        let node_id = *request.get_node_id()?;
+
+        info!("Node {node_id} Get Property Request");
+        let prop_req = request.into_inner();
+
+        self.get_node_property(prop_req).await.map_err(Status::from)
     }
 }
 
@@ -579,18 +666,20 @@ impl AstarteNode {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::io;
-    use std::io::ErrorKind;
-    use std::ops::Deref;
-    use std::sync::Arc;
-
+    use astarte_device_sdk::store::StoredProp;
+    use astarte_device_sdk::{AstarteType, Error};
     use astarte_message_hub_proto::astarte_message::Payload;
     use astarte_message_hub_proto::message_hub_server::MessageHub;
     use astarte_message_hub_proto::{AstarteMessage, InterfacesJson};
     use async_trait::async_trait;
     use hyper::{Body, Response, StatusCode};
     use mockall::mock;
+    use std::collections::HashMap;
+    use std::future::Future;
+    use std::io;
+    use std::io::ErrorKind;
+    use std::ops::Deref;
+    use std::sync::Arc;
     use tokio::sync::mpsc;
     use tokio::sync::RwLock;
     use tonic::body::BoxBody;
@@ -638,6 +727,18 @@ mod test {
             async fn extend_interfaces(&self, node_id: &Uuid, to_add: HashMap<String, Interface>) -> Result<Vec<Interface>, AstarteMessageHubError>;
 
             async fn remove_interfaces(&self, node_id: &Uuid, to_remove: HashSet<String>) -> Result<Vec<String>, AstarteMessageHubError>;
+        }
+
+        impl PropAccess for AstarteHandler {
+            fn property(&self, interface: &str, path: &str) -> impl Future<Output=Result<Option<AstarteType>, Error>> + Send;
+
+            fn interface_props(&self, interface: &str) -> impl Future<Output=Result<Vec<StoredProp>, Error>> + Send;
+
+            fn all_props(&self) -> impl Future<Output=Result<Vec<StoredProp>, Error>> + Send;
+
+            fn device_props(&self) -> impl Future<Output=Result<Vec<StoredProp>, Error>> + Send;
+
+            fn server_props(&self) -> impl Future<Output=Result<Vec<StoredProp>, Error>> + Send;
         }
     }
 

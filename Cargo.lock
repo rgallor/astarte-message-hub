@@ -129,7 +129,7 @@ checksum = "4c95c10ba0b00a02636238b814946408b1322d5ac4760326e6fb8ec956d85775"
 [[package]]
 name = "astarte-device-sdk"
 version = "0.9.2"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=feat/get-properties-msghub#130d8500aa06ae376b770ac05d3141b4ff9c9f3a"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=feat/get-properties-msghub#72617fa0a27fe5ea119fb6a2929c48d56d493156"
 dependencies = [
  "astarte-device-sdk-derive",
  "astarte-message-hub-proto",
@@ -163,7 +163,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-derive"
 version = "0.9.2"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=feat/get-properties-msghub#130d8500aa06ae376b770ac05d3141b4ff9c9f3a"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=feat/get-properties-msghub#72617fa0a27fe5ea119fb6a2929c48d56d493156"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -173,7 +173,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-mock"
 version = "0.9.2"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=feat/get-properties-msghub#130d8500aa06ae376b770ac05d3141b4ff9c9f3a"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=feat/get-properties-msghub#72617fa0a27fe5ea119fb6a2929c48d56d493156"
 dependencies = [
  "astarte-device-sdk",
  "chrono",
@@ -1432,7 +1432,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.8",
  "tokio",
  "tower-service",
  "tracing",
