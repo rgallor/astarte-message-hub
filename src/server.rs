@@ -29,13 +29,12 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use astarte_device_sdk::properties::PropAccess;
-use astarte_device_sdk::transport::grpc::types::StoredProperties;
+use astarte_device_sdk::transport::grpc::convert::map_stored_properties_to_proto;
 use astarte_device_sdk::Interface;
 use astarte_message_hub_proto::message_hub_server::MessageHub;
 use astarte_message_hub_proto::{
     AstarteDataTypeIndividual, AstarteMessage, InterfacesJson, InterfacesName, MessageHubEvent,
-    Node, Property, PropertyIdentifier, StoredProperties as ProtoStoredProperties,
-    StoredPropertiesFilter,
+    Node, Property, PropertyIdentifier, StoredProperties, StoredPropertiesFilter,
 };
 use hyper::{http, Body, Uri};
 use itertools::Itertools;
@@ -165,10 +164,7 @@ where
         Ok(Response::new(Empty {}))
     }
 
-    async fn get_node_properties(
-        &self,
-        ifaces_name: InterfacesName,
-    ) -> Resp<ProtoStoredProperties> {
+    async fn get_node_properties(&self, ifaces_name: InterfacesName) -> Resp<StoredProperties> {
         let mut props = vec![];
 
         for iface in ifaces_name.names {
@@ -176,15 +172,15 @@ where
             props.extend_from_slice(&iface_props);
         }
 
-        let res = StoredProperties::from_props(props);
+        let props = map_stored_properties_to_proto(props);
 
-        Ok(Response::new(res.properties))
+        Ok(Response::new(props))
     }
 
     async fn get_node_all_properties(
         &self,
         filter: StoredPropertiesFilter,
-    ) -> Resp<ProtoStoredProperties> {
+    ) -> Resp<StoredProperties> {
         let props = match filter.ownership {
             // device-owned properties
             Some(0) => self.astarte_handler.device_props().await?,
@@ -195,9 +191,9 @@ where
             Some(n) => unreachable!("{n} is not a valid ownership value"),
         };
 
-        let res = StoredProperties::from_props(props);
+        let props = map_stored_properties_to_proto(props);
 
-        Ok(Response::new(res.properties))
+        Ok(Response::new(props))
     }
 
     async fn get_node_property(&self, prop_req: PropertyIdentifier) -> Resp<Property> {
@@ -600,7 +596,7 @@ where
     async fn get_properties(
         &self,
         request: Request<InterfacesName>,
-    ) -> Result<Response<ProtoStoredProperties>, Status> {
+    ) -> Result<Response<StoredProperties>, Status> {
         // retrieve the node id
         let node_id = *request.get_node_id()?;
 
@@ -615,7 +611,7 @@ where
     async fn get_all_properties(
         &self,
         request: Request<StoredPropertiesFilter>,
-    ) -> Result<Response<ProtoStoredProperties>, Status> {
+    ) -> Result<Response<StoredProperties>, Status> {
         // retrieve the node id
         let node_id = *request.get_node_id()?;
 
