@@ -28,7 +28,7 @@ use astarte_device_sdk::{Client, EventLoop};
 
 use clap::Parser;
 use log::{error, info};
-use std::time;
+use astarte_device_sdk::properties::PropAccess;
 use tokio::signal::ctrl_c;
 use tokio::task::JoinSet;
 use uuid::Uuid;
@@ -40,6 +40,10 @@ const SERVER_DATASTREAM: &str = include_str!(
     "./interfaces/org.astarte-platform.rust.examples.datastream.ServerDatastream.json"
 );
 
+const DEVICE_PROPERTY: &str = include_str!(
+    "./interfaces/org.astarte-platform.rust.examples.individual-properties.DeviceProperties.json"
+);
+
 /// Create a ProtoBuf client for the Astarte message hub.
 #[derive(Parser, Debug)]
 #[clap(version, about)]
@@ -49,7 +53,7 @@ struct Cli {
     uuid: String,
 
     /// Endpoint of the Astarte Message Hub server instance
-    #[clap(default_value = "http://[::1]:50051")]
+    #[clap(default_value = "http://127.0.0.1:50051")]
     endpoint: String,
 
     /// Stop after sending COUNT messages.
@@ -77,6 +81,7 @@ async fn main() -> Result<(), DynError> {
         .store(MemoryStore::new())
         .interface_str(DEVICE_DATASTREAM)?
         .interface_str(SERVER_DATASTREAM)?
+        .interface_str(DEVICE_PROPERTY)?
         .connect(grpc_cfg)
         .await?
         .build()
@@ -103,41 +108,81 @@ async fn main() -> Result<(), DynError> {
         Ok(())
     });
 
-    // Create a task to transmit
+    // create a task to transmit properties
     tasks.spawn({
         let client = client.clone();
 
         async move {
-            let now = time::SystemTime::now();
-            let mut count = 0;
-            // Consistent interval of 3 seconds
-            let mut interval = tokio::time::interval(time::Duration::from_millis(args.time));
+            client.unset("org.astarte-platform.rust.examples.individual-properties.DeviceProperties", "/1/name").await?;
 
-            while args.count.is_none() || Some(count) < args.count {
-                interval.tick().await;
+            // Check the value of the name property for sensors 1
+            let len = client.all_props().await?.len();
+            let props = client.interface_props("org.astarte-platform.rust.examples.individual-properties.DeviceProperties").await?;
+            let name = get_name_for_sensor(&client, 1).await?;
 
-                info!("Publishing the uptime through the message hub.");
+            info!("Properties information at startup:");
+            info!("  - All Properties: {len}");
+            info!("  - Get properties for the DeviceProperties interface: {props:?}");
+            info!("  - Property \"name\" has value: \"{name}\"");
 
-                let elapsed = now.elapsed()?.as_secs();
 
-                let elapsed_str = format!("Uptime for node {}: {}", args.uuid, elapsed);
+            client
+                .send(
+                    "org.astarte-platform.rust.examples.individual-properties.DeviceProperties",
+                    "/1/name",
+                    "name number 10",
+                )
+                .await?;
 
-                client
-                    .send(
-                        "org.astarte-platform.rust.examples.datastream.DeviceDatastream",
-                        "/uptime",
-                        elapsed_str,
-                    )
-                    .await?;
+            // Check the value of the name property for sensors 1
+            let len = client.all_props().await?.len();
+            let props = client.interface_props("org.astarte-platform.rust.examples.individual-properties.DeviceProperties").await?;
+            let name = get_name_for_sensor(&client, 1).await?;
 
-                count += 1;
-            }
-
-            info!("Done sending messages");
+            info!("Properties information after update:");
+            info!("  - All Properties: {len}");
+            info!("  - Get properties for the DeviceProperties interface: {props:?}");
+            info!("  - Property \"name\" has value: \"{name}\"");
 
             Ok(())
         }
     });
+
+    // // Create a task to transmit
+    // tasks.spawn({
+    //     let client = client.clone();
+    //
+    //     async move {
+    //         let now = time::SystemTime::now();
+    //         let mut count = 0;
+    //         // Consistent interval of 3 seconds
+    //         let mut interval = tokio::time::interval(time::Duration::from_millis(args.time));
+    //
+    //         while args.count.is_none() || Some(count) < args.count {
+    //             interval.tick().await;
+    //
+    //             info!("Publishing the uptime through the message hub.");
+    //
+    //             let elapsed = now.elapsed()?.as_secs();
+    //
+    //             let elapsed_str = format!("Uptime for node {}: {}", args.uuid, elapsed);
+    //
+    //             client
+    //                 .send(
+    //                     "org.astarte-platform.rust.examples.datastream.DeviceDatastream",
+    //                     "/uptime",
+    //                     elapsed_str,
+    //                 )
+    //                 .await?;
+    //
+    //             count += 1;
+    //         }
+    //
+    //         info!("Done sending messages");
+    //
+    //         Ok(())
+    //     }
+    // });
 
     tasks.spawn(async move {
         connection.handle_events().await?;
@@ -168,4 +213,22 @@ async fn main() -> Result<(), DynError> {
     client.disconnect().await?;
 
     Ok(())
+}
+
+// Getter function for the property "name" of a sensor.
+async fn get_name_for_sensor(
+    device: &impl PropAccess,
+    sensor_n: i32,
+) -> Result<String, DynError> {
+    let interface = "org.astarte-platform.rust.examples.individual-properties.DeviceProperties";
+    let path = format!("/{sensor_n}/name");
+
+    let name = device
+        .property(interface, &path)
+        .await?
+        .map(|t| t.try_into())
+        .transpose()?
+        .unwrap_or_else(|| "None".to_string());
+
+    Ok(name)
 }
