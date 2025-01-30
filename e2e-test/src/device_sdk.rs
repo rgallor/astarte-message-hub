@@ -19,7 +19,10 @@
 use std::{sync::Arc, time::Duration};
 
 use astarte_device_sdk::{
-    builder::DeviceBuilder, prelude::*, store::memory::MemoryStore, transport::grpc::GrpcConfig,
+    builder::DeviceBuilder,
+    prelude::*,
+    store::memory::MemoryStore,
+    transport::grpc::{GrpcConfig, GrpcStore},
     DeviceClient, DeviceEvent,
 };
 use eyre::Context;
@@ -34,7 +37,7 @@ use crate::{interfaces::INTERFACES, GRPC_PORT, UUID};
 
 pub struct Node {
     handle: AbortHandle,
-    pub client: DeviceClient<MemoryStore>,
+    pub client: DeviceClient<GrpcStore<MemoryStore>>,
 }
 
 impl Node {
