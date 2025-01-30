@@ -70,11 +70,11 @@ pub async fn init_node(
     }
 
     debug!("Start connecting to the msghub");
-    let handle = tokio::spawn(async move { builder.connect(grpc).await });
+    let handle = tokio::spawn(async move { builder.connection(grpc) });
     barrier.wait().await;
     info!("Connected to the message hub");
 
-    let (client, connection) = handle.await??.build().await;
+    let (client, connection) = handle.await?.build().await?;
 
     let handle = tasks.spawn(async move { connection.handle_events().await.map_err(Into::into) });
 
