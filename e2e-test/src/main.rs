@@ -162,6 +162,9 @@ async fn e2e_test(
         .collect_vec();
     remove_node_interfaces(&mut node, &api, &barrier, to_remove).await?;
 
+    // test storing and retrieving properties
+    get_props(&mut node, &api, &barrier).await?;
+
     // Disconnect the message hub and cleanup
     node.close().await?;
     msghub.close();
@@ -244,6 +247,98 @@ async fn send_device_data(node: &Node, api: &Api, barrier: &Barrier) -> eyre::Re
         }
     })
     .await?;
+
+    debug!("unsetting DeviceProperty");
+    let data = DeviceProperty::default().astarte_aggregate()?;
+    for &endpoint in ENDPOINTS {
+        ensure!(data.contains_key(endpoint), "endpoint not found");
+
+        node.client
+            .unset(DeviceProperty::name(), &format!("/{endpoint}"))
+            .await?;
+
+        barrier.wait().await;
+    }
+
+    retry(10, || async move {
+        let data = api.property(DeviceProperty::name()).await?;
+        ensure!(data.is_empty(), "property not unsetted {data:?}");
+
+        Ok(())
+    })
+    .await?;
+
+    Ok(())
+}
+
+#[instrument(skip_all)]
+async fn get_props(node: &mut Node, api: &Api, barrier: &Barrier) -> eyre::Result<()> {
+    debug!("sending DeviceProperty and ServerProperty");
+    let data_dp = DeviceProperty::default().astarte_aggregate()?;
+    let data_sp = ServerProperty::default().astarte_aggregate()?;
+
+    retry(10, || {
+        let value = data_dp.clone();
+
+        async move {
+            api.check_individual(DeviceProperty::name(), &value).await?;
+
+            Ok(())
+        }
+    })
+    .await?;
+
+    for (k, v) in data_sp {
+        api.send_individual(ServerProperty::name(), &k, &v).await?;
+
+        let event = node.recv().await?;
+
+        assert_eq!(event.interface, ServerProperty::name());
+        assert_eq!(event.path, format!("/{k}"));
+
+        let data = event.data.as_individual().ok_or_eyre("not an object")?;
+        assert_eq!(*data, v);
+    }
+
+    debug!("retrieving property values given the property name and the specific endpoint");
+    for &endpoint in ENDPOINTS {
+        let stored_prop = node
+            .client
+            .property(DeviceProperty::name(), endpoint)
+            .await?
+            .ok_or_eyre(format!("property endpoint {endpoint} not stored"))?;
+
+        let exp_value = data_dp
+            .get(endpoint)
+            .ok_or_eyre("endpoint not found")?
+            .clone();
+
+        assert_eq!(exp_value, stored_prop);
+    }
+
+    debug!("retrieving property values associated to all endpoints given the property name");
+    let stored_prop = node.client.interface_props(DeviceProperty::name()).await?;
+    assert_eq!(stored_prop.len(), data_dp.keys().len());
+    for prop in stored_prop {
+        let exp_value = data_dp
+            .get(&prop.path)
+            .ok_or_eyre("endpoint not found")?
+            .clone();
+        assert_eq!(exp_value, prop.value);
+    }
+
+    debug!("retrieving all device property values");
+    let stored_prop = node.client.device_props().await?;
+    assert_eq!(stored_prop.len(), data_dp.keys().len());
+    for prop in stored_prop {
+        let exp_value = data_dp
+            .get(&prop.path)
+            .ok_or_eyre("endpoint not found")?
+            .clone();
+        assert_eq!(exp_value, prop.value);
+    }
+
+    // TODO: distinguish when retrieving all Device owned props, server owned or both types
 
     debug!("unsetting DeviceProperty");
     let data = DeviceProperty::default().astarte_aggregate()?;
