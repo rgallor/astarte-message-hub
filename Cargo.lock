@@ -130,7 +130,7 @@ checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
 [[package]]
 name = "astarte-device-sdk"
 version = "0.9.6"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=chore/store/pubmod#d86cb754d1e0052c64a176cb6b85725ffcda9cd9"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=chore/store/pubmod#f59a3a2e3efeebb6f68760846d805901b47019a5"
 dependencies = [
  "astarte-device-sdk-derive",
  "astarte-message-hub-proto",
@@ -165,7 +165,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-derive"
 version = "0.9.6"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=chore/store/pubmod#d86cb754d1e0052c64a176cb6b85725ffcda9cd9"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=chore/store/pubmod#f59a3a2e3efeebb6f68760846d805901b47019a5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -175,7 +175,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-mock"
 version = "0.9.6"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=chore/store/pubmod#d86cb754d1e0052c64a176cb6b85725ffcda9cd9"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=chore/store/pubmod#f59a3a2e3efeebb6f68760846d805901b47019a5"
 dependencies = [
  "astarte-device-sdk",
  "chrono",
@@ -224,7 +224,7 @@ dependencies = [
 [[package]]
 name = "astarte-message-hub-proto"
 version = "0.7.0"
-source = "git+https://github.com/rgallor/astarte-message-hub-proto.git?branch=feat/property-conversion#7c48c07442493cc30fbe2a0f0c3f8c6ed868515e"
+source = "git+https://github.com/rgallor/astarte-message-hub-proto.git?branch=feat/property-conversion#7951d6606e72e2891ffcf40b1b3f5207698e28b4"
 dependencies = [
  "chrono",
  "pbjson-types",
@@ -1768,15 +1768,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1850,7 +1841,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -2454,7 +2445,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be769465445e8c1474e9c5dac2018218498557af32d9ed057325ec9a41ae81bf"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.11.0",
  "log",
  "multimap",
  "once_cell",
@@ -2487,7 +2478,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.11.0",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
