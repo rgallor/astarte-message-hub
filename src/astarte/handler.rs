@@ -493,7 +493,7 @@ impl AstartePublisher for DevicePublisher {
                     data,
                     &astarte_message.interface_name,
                     &astarte_message.path,
-                    astarte_message.timestamp.clone(),
+                    astarte_message.timestamp,
                 )
                 .await
             }
@@ -502,7 +502,7 @@ impl AstartePublisher for DevicePublisher {
                     data,
                     &astarte_message.interface_name,
                     &astarte_message.path,
-                    astarte_message.timestamp.clone(),
+                    astarte_message.timestamp,
                 )
                 .await
             }
@@ -602,7 +602,7 @@ mod test {
             .expect_extend_interfaces_vec()
             .once()
             .in_sequence(&mut seq)
-            .withf(move |i| *i == interfaces)
+            .with(predicate::eq(interfaces))
             .returning(move |_| Ok(vec![interface.interface_name().to_string()]));
 
         client
