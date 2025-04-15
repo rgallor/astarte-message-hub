@@ -130,7 +130,7 @@ checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
 [[package]]
 name = "astarte-device-sdk"
 version = "0.9.6"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=refactor/property#96ecb4d77c4c87cd42f7a31b827e45b56bc4157f"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=refactor/property#f60301c96482d5d400e7eb5a688fbaa15f1d5335"
 dependencies = [
  "astarte-device-sdk-derive",
  "astarte-message-hub-proto",
@@ -166,7 +166,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-derive"
 version = "0.9.6"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=refactor/property#96ecb4d77c4c87cd42f7a31b827e45b56bc4157f"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=refactor/property#f60301c96482d5d400e7eb5a688fbaa15f1d5335"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -176,7 +176,7 @@ dependencies = [
 [[package]]
 name = "astarte-device-sdk-mock"
 version = "0.9.6"
-source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=refactor/property#96ecb4d77c4c87cd42f7a31b827e45b56bc4157f"
+source = "git+https://github.com/rgallor/astarte-device-sdk-rust.git?branch=refactor/property#f60301c96482d5d400e7eb5a688fbaa15f1d5335"
 dependencies = [
  "astarte-device-sdk",
  "chrono",
@@ -1842,7 +1842,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
